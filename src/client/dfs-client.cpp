@@ -14,11 +14,11 @@
 #include <sys/inotify.h>
 #include <grpcpp/grpcpp.h>
 
-#include "dfs-utils.h"
-#include "dfs-client-p2.h"
-#include "dfslibx-clientnode-p2.h"
-#include "../dfslib-shared-p2.h"
-#include "../dfslib-clientnode-p2.h"
+#include "utils/dfs-utils.h"
+#include "dfs/dfs-client.h"
+#include "dfs/dfslibx-clientnode.h"
+#include "dfs/dfslib-shared.h"
+#include "dfs/dfslib-clientnode.h"
 
 DFSClient::DFSClient() {}
 

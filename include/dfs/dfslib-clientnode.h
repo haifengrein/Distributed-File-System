@@ -10,8 +10,8 @@
 
 #include <grpcpp/grpcpp.h>
 
-#include "src/dfslibx-clientnode-p2.h"
-#include "proto-src/dfs-service.grpc.pb.h"
+#include "dfs/dfslibx-clientnode.h"
+#include "dfs-service.grpc.pb.h"
 
 class DFSClientNodeP2 : public DFSClientNode {
 

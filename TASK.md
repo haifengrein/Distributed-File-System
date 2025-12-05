@@ -23,16 +23,20 @@ This document tracks the roadmap for transforming the academic Distributed File 
 ## Phase 2: Structural Refactoring ("De-Studentification")
 *Objective: Remove "coursework" artifacts and establish a standard C++ project structure.*
 
-- [ ] **Repo Cleanup**:
-    - [ ] Create root-level `src/`, `include/`, and `tests/` directories.
-    - [ ] Merge `part2` code into the root as the main codebase (discard `part1`).
-    - [ ] Remove `bin/`, `mnt/`, `obj/` from version control (update `.gitignore`).
-- [ ] **Dependency Management**:
-    - [ ] (Optional) Introduce `vcpkg` or `conan` for managing dependencies (gRPC, Protobuf, spdlog), or rely on system installed libs but document clearly.
+- [x] **Repo Cleanup**:
+    - [x] Create root-level `src/`, `include/`, and `tests/` directories.
+    - [x] Merge `part2` code into the root as the main codebase (discard `part1`).
+    - [x] Remove `bin/`, `mnt/`, `obj/` from version control (update `.gitignore`).
+- [x] **Dependency Management**:
+    - [x] (Optional) Introduce `vcpkg` or `conan` for managing dependencies (gRPC, Protobuf, spdlog), or rely on system installed libs but document clearly.
 
 ## Phase 3: Modern C++ & Code Quality
 *Objective: Demonstrate mastery of C++14/17 standards and remove legacy C-style patterns.*
 
+- [ ] **Logging Modernization**:
+    - [ ] Integrate `spdlog` library (header-only or compiled).
+    - [ ] Create a `Logger` wrapper class to replace the custom `dfs_log` macro.
+    - [ ] Replace `std::cout`/`printf` with structured logging (`spdlog::info`, `spdlog::error`).
 - [ ] **Concurrency Upgrade**:
     - [ ] Replace `pthread_create` with `std::thread`.
     - [ ] Replace `pthread_mutex_t` with `std::mutex` and `std::unique_lock`/`std::lock_guard`.
@@ -40,10 +44,6 @@ This document tracks the roadmap for transforming the academic Distributed File 
 - [ ] **Memory Management**:
     - [ ] Audit code for `new`/`delete`.
     - [ ] Replace raw pointers with `std::unique_ptr` (for exclusive ownership) or `std::shared_ptr`.
-- [ ] **Logging**:
-    - [ ] Integrate `spdlog` library.
-    - [ ] Replace `std::cout`/`printf` with structured logging (`spdlog::info`, `spdlog::error`).
-    - [ ] Add request ID context to logs (preparation for Phase 6).
 - [ ] **Style Consistency**:
     - [ ] Add `.clang-format` file (Google or LLVM style).
     - [ ] Apply formatting to all source files.

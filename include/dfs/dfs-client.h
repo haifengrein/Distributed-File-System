@@ -5,8 +5,8 @@
 #include <string>
 #include <vector>
 
-#include "../dfslib-shared-p2.h"
-#include "../dfslib-clientnode-p2.h"
+#include "dfs/dfslib-shared.h"
+#include "dfs/dfslib-clientnode.h"
 
 class DFSClient {
 

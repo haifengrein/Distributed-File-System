@@ -12,8 +12,8 @@
 #include <thread>
 #include <sys/stat.h>
 
-#include "src/dfs-utils.h"
-#include "proto-src/dfs-service.grpc.pb.h"
+#include "utils/dfs-utils.h"
+#include "dfs-service.grpc.pb.h"
 
 
 //

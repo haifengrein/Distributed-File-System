@@ -4,8 +4,8 @@
 #include <cstddef>
 #include <sys/stat.h>
 
-#include "dfslib-shared-p2.h"
-#include "proto-src/dfs-service.grpc.pb.h"
+#include "dfs/dfslib-shared.h"
+#include "dfs-service.grpc.pb.h"
 
 // Global log level used throughout the system
 // Note: this may be adjusted from the CLI in

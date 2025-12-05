@@ -7,7 +7,7 @@
 #include <sys/stat.h>
 
 #define CRCPP_USE_CPP11
-#include "CRC.h"
+#include "utils/CRC.h"
 
 #define DFS_BUFFERSIZE 4096
 

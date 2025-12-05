@@ -9,7 +9,7 @@
 #include <mutex>
 
 #include <grpcpp/grpcpp.h>
-#include "../proto-src/dfs-service.grpc.pb.h"
+#include "dfs-service.grpc.pb.h"
 
 /**
  * The containing structure used to pass async data

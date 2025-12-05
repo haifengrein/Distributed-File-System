@@ -4,8 +4,8 @@
 #include <fstream>
 #include <csignal>
 
-#include "dfs-utils.h"
-#include "../dfslib-servernode-p2.h"
+#include "utils/dfs-utils.h"
+#include "dfs/dfslib-servernode.h"
 
 void HandleSignal(int signum) {
     exit(0);

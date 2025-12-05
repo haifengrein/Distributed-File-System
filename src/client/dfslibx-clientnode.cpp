@@ -16,8 +16,8 @@
 #include <grpcpp/grpcpp.h>
 #include <utime.h>
 
-#include "dfs-utils.h"
-#include "dfslibx-clientnode-p2.h"
+#include "utils/dfs-utils.h"
+#include "dfs/dfslibx-clientnode.h"
 
 using grpc::Status;
 using grpc::Channel;

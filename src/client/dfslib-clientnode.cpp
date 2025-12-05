@@ -20,11 +20,11 @@
 #include <google/protobuf/util/time_util.h>
 
 
-#include "src/dfs-utils.h"
-#include "src/dfslibx-clientnode-p2.h"
-#include "dfslib-shared-p2.h"
-#include "dfslib-clientnode-p2.h"
-#include "proto-src/dfs-service.grpc.pb.h"
+#include "utils/dfs-utils.h"
+#include "dfs/dfslibx-clientnode.h"
+#include "dfs/dfslib-shared.h"
+#include "dfs/dfslib-clientnode.h"
+#include "dfs-service.grpc.pb.h"
 
 using grpc::Status;
 using grpc::Channel;

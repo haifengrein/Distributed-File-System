@@ -2,8 +2,8 @@
 #define PR4_DFSCALLDATAMANAGER_H
 
 #include <grpcpp/grpcpp.h>
-#include "dfs-utils.h"
-#include "../proto-src/dfs-service.grpc.pb.h"
+#include "utils/dfs-utils.h"
+#include "dfs-service.grpc.pb.h"
 
 /**
  * Virtual class meant to be inherited by the DFSServiceImpl class. It is used

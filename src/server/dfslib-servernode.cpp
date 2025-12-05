@@ -15,11 +15,11 @@
 #include <google/protobuf/util/time_util.h>
 #include <utime.h>
 
-#include "proto-src/dfs-service.grpc.pb.h"
-#include "src/dfslibx-call-data.h"
-#include "src/dfslibx-service-runner.h"
-#include "dfslib-shared-p2.h"
-#include "dfslib-servernode-p2.h"
+#include "dfs-service.grpc.pb.h"
+#include "dfs/dfslibx-call-data.h"
+#include "dfs/dfslibx-service-runner.h"
+#include "dfs/dfslib-shared.h"
+#include "dfs/dfslib-servernode.h"
 
 using grpc::Status;
 using grpc::Server;

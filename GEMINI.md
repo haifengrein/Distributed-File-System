@@ -11,43 +11,41 @@ This document provides context for the Gemini agent interacting with this C++ pr
     *   **Part 1:** Basic RPC services (Fetch, Store, List, Stat) using synchronous gRPC.
     *   **Part 2:** Advanced DFS features (Whole-file caching, Write locks, Async notifications, Eventual consistency using `inotify` and CRC checksums).
 
-## Directory Structure
+## Directory Structure (Standard Layout)
 
-*   `bin/`: Compiled executables (`dfs-server-p1`, `dfs-client-p1`, etc.) will be placed here.
-*   `docs/`: Documentation and diagrams for Part 1 and Part 2.
-*   `mnt/`: Mount points for the client/server storage (used in Part 2).
-*   `part1/`: Source code and configuration for Part 1.
-*   `part2/`: Source code and configuration for Part 2.
-*   `tmp/`: Temporary object files.
+*   `cmake/`: CMake modules and configuration files.
+*   `docs/`: Project documentation and diagrams.
+*   `include/`: Public header files (`.h`).
+    *   `dfs/`: Core DFS headers.
+    *   `utils/`: Utility headers.
+*   `protos/`: Protocol Buffer definition files (`.proto`).
+*   `src/`: Source code (`.cpp`).
+    *   `client/`: Client-side specific implementation.
+    *   `server/`: Server-side specific implementation.
+    *   `common/`: Shared logic and utilities.
+*   `tests/`: Unit and integration tests.
+*   `tools/`: Helper scripts (e.g., build scripts, docker helpers).
+*   `build/`: (Git ignored) Build artifacts.
+*   `bin/`: (Git ignored) Final executables.
 
 ## Building and Running
 
-The project uses `make` for build automation. The root `Makefile` delegates to `part1` and `part2` Makefiles.
+The project uses **CMake** for build automation and **Docker** for a consistent development environment.
 
-### Common Commands
+### Development Environment
+1.  **Start Environment:** `docker-compose up -d`
+2.  **Enter Shell:** `docker-compose exec dev bash`
 
-*   **Build All:** `make part1` or `make part2` (from root).
-*   **Generate Protobufs:** `make protos` (Crucial step after modifying `.proto` files).
-*   **Clean:** `make clean_all` or `make clean_part1` / `make clean_part2`.
+### Build Commands (inside container)
+```bash
+mkdir -p build && cd build
+cmake ..
+make
+```
 
-### Part 1 (Basic RPC)
-
-*   **Directory:** `part1/`
-*   **Key Executables:**
-    *   Server: `./bin/dfs-server-p1`
-    *   Client: `./bin/dfs-client-p1 <command> <args>`
-*   **Client Commands:** `fetch`, `store`, `list`, `stat`.
-    *   Example: `./bin/dfs-client-p1 fetch filename.jpg`
-
-### Part 2 (Full DFS)
-
-*   **Directory:** `part2/`
-*   **Key Executables:**
-    *   Server: `./bin/dfs-server-p2`
-    *   Client: `./bin/dfs-client-p2 <command>`
-*   **Usage:**
-    *   Server: `./bin/dfs-server-p2`
-    *   Client Mount: `./bin/dfs-client-p2 mount` (Starts watcher and sync threads).
+### Executables
+*   **Server:** `./build/bin/dfs-server`
+*   **Client:** `./build/bin/dfs-client`
 
 ## Development Conventions
 

@@ -22,9 +22,9 @@
 #include <grpcpp/grpcpp.h>
 #include <utime.h>
 
-#include "dfs-utils.h"
-#include "dfslibx-call-data.h"
-#include "../proto-src/dfs-service.grpc.pb.h"
+#include "utils/dfs-utils.h"
+#include "dfs/dfslibx-call-data.h"
+#include "dfs-service.grpc.pb.h"
 
 /**
  * The QueueRequest is a container for managing the asynchronous callbacks
