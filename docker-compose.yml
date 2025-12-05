@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  dev:
+    build: .
+    image: dfs-dev-env
+    container_name: dfs-dev
+    volumes:
+      - .:/app
+    working_dir: /app
+    # Keep the container running
+    command: tail -f /dev/null
+    # Improve IO performance on macOS/Windows
+    platform: linux/amd64
