@@ -61,6 +61,9 @@ include_directories(${PROTO_SRC_DIR})
 # --- Common Library ---
 add_library(dfs_common
     src/common/dfslib-shared.cpp
+    src/common/storage/posix_storage_engine.cpp
+    src/common/lock_manager.cpp
+    src/common/sync_engine.cpp
 )
 target_link_libraries(dfs_common PUBLIC dfs_proto spdlog::spdlog)
 

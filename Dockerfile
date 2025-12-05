@@ -25,6 +25,9 @@ RUN apt-get update && apt-get install -y \
     libgtest-dev \
     clang-format \
     valgrind \
+    python3 \
+    python3-pip \
+    psmisc \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a working directory

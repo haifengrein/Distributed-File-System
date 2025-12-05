@@ -2,6 +2,9 @@
 add_executable(dfs_tests
     test_utils.cpp
     test_concurrency.cpp
+    test_storage_engine.cpp
+    test_lock_manager.cpp
+    test_sync_engine.cpp
 )
 
 target_link_libraries(dfs_tests PRIVATE 

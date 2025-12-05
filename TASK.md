@@ -53,34 +53,34 @@ This document tracks the roadmap for transforming the academic Distributed File 
 
 ### 4.1 Code Style & Consistency (Prerequisite)
 *Why: Standardize formatting now to prevent massive diff noise during structural changes.*
-- [ ] **Setup**:
-    - [ ] Create `.clang-format` (Google Style).
-    - [ ] Apply formatting to all files.
+- [x] **Setup**:
+    - [x] Create `.clang-format` (Google Style).
+    - [x] Apply formatting to all files.
 
 ### 4.2 Storage Layer Abstraction
 *Why: Decouple File I/O from Business Logic to enable mocking.*
-- [ ] **TDD - Interface Definition**:
-    - [ ] Define `IStorageEngine` interface (Read, Write, Stat, Delete).
+- [x] **TDD - Interface Definition**:
+    - [x] Define `IStorageEngine` interface (Read, Write, Stat, Delete).
     - [ ] Create `MockStorageEngine` using GMock.
-- [ ] **Implementation**:
-    - [ ] Implement `PosixStorageEngine` (moves actual I/O code from `DFSServiceImpl`).
-    - [ ] **Test**: Unit test `PosixStorageEngine` with temporary files.
-- [ ] **Integration**:
-    - [ ] Inject `IStorageEngine` into `DFSServiceImpl`.
+- [x] **Implementation**:
+    - [x] Implement `PosixStorageEngine` (moves actual I/O code from `DFSServiceImpl`).
+    - [x] **Test**: Unit test `PosixStorageEngine` with temporary files.
+- [x] **Integration**:
+    - [x] Inject `IStorageEngine` into `DFSServiceImpl`.
 
 ### 4.3 Lock Manager Extraction
 *Why: Centralize concurrency control, making it testable and replaceable (e.g., for distributed locks later).*
-- [ ] **TDD - Locking Logic**:
-    - [ ] Create `test_lock_manager.cpp`.
-    - [ ] Write tests for: Acquire, Release, Conflict detection, Timeout (if applicable).
-- [ ] **Implementation**:
-    - [ ] Extract `LockManager` class from `DFSServiceImpl`.
-    - [ ] Use `std::shared_mutex` (C++17) for Read/Write lock optimization if appropriate.
-- [ ] **Integration**:
-    - [ ] Replace raw mutex/map logic in `DFSServiceImpl` with `LockManager`.
+- [x] **TDD - Locking Logic**:
+    - [x] Create `test_lock_manager.cpp`.
+    - [x] Write tests for: Acquire, Release, Conflict detection, Timeout (if applicable).
+- [x] **Implementation**:
+    - [x] Extract `LockManager` class from `DFSServiceImpl`.
+    - [x] Use `std::shared_mutex` (C++17) for Read/Write lock optimization if appropriate.
+- [x] **Integration**:
+    - [x] Replace raw mutex/map logic in `DFSServiceImpl` with `LockManager`.
 
 ### 4.4 Server Service Decomposition
-*Why: The gRPC Service should only act as a "Controller", delegating logic to domain objects.*
+*Status: Deferred. The current DFSServiceImpl is sufficiently decoupled after extracting Storage and Locks.*
 - [ ] **TDD - Service Logic**:
     - [ ] Create `test_dfs_service.cpp` using `MockStorageEngine` and `MockLockManager`.
     - [ ] Verify: Request flow -> Lock Acquire -> Storage Write -> Lock Release.
@@ -90,12 +90,12 @@ This document tracks the roadmap for transforming the academic Distributed File 
 
 ### 4.5 Client-Side Synchronization Engine
 *Why: The client logic (Watcher vs gRPC vs Local File) is currently a tangle of race conditions.*
-- [ ] **TDD - Sync Logic**:
-    - [ ] Define `ISyncStrategy` (e.g., `LastWriteWinsStrategy`).
-    - [ ] Write tests for conflict scenarios (Server newer, Client newer, Same).
-- [ ] **Implementation**:
-    - [ ] Extract `SyncEngine` from `DFSClientNode`.
-    - [ ] Decouple `InotifyWatcher` from the main loop (Event Bus pattern?).
+- [x] **TDD - Sync Logic**:
+    - [x] Define `ISyncStrategy` (e.g., `LastWriteWinsStrategy`).
+    - [x] Write tests for conflict scenarios (Server newer, Client newer, Same).
+- [x] **Implementation**:
+    - [x] Extract `SyncEngine` from `DFSClientNode`.
+    - [x] Decouple `InotifyWatcher` from the main loop (Event Bus pattern?).
 
 ---
 

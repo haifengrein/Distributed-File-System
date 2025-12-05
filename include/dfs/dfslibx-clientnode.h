@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "dfs-service.grpc.pb.h"
+#include "utils/CRC.h"
 
 /**
  * The containing structure used to pass async data
@@ -196,7 +197,7 @@ public:
         request.set_name("");
 
         // Call object to store rpc data
-        AsyncClientData<ResponseT>* call_data = new AsyncClientData<ResponseT>;
+        auto call_data = std::make_unique<AsyncClientData<ResponseT>>();
 
         // stub_->PrepareAyncCallbackList() creates an RPC object, returning
         // an instance to store in "call_data" but does not actually start the RPC.
@@ -211,7 +212,10 @@ public:
         // Request that, upon completion of the RPC, "reply" be updated with the
         // server's response; "status" with the indication of whether the operation
         // was successful. Tag the request with the memory address of the call_data object.
-        call_data->response_reader->Finish(&call_data->reply, &call_data->status, (void*)call_data);
+        void* tag = call_data.release();
+        call_data->response_reader->Finish(&static_cast<AsyncClientData<ResponseT>*>(tag)->reply,
+                                           &static_cast<AsyncClientData<ResponseT>*>(tag)->status,
+                                           tag);
     }
 
     /**

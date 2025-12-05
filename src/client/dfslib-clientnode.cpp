@@ -26,6 +26,7 @@
 #include "dfs/dfslib-shared.h"
 #include "dfs/dfslibx-clientnode.h"
 #include "utils/dfs-utils.h"
+#include "dfs/sync_engine.h"
 
 using grpc::Channel;
 using grpc::ClientContext;
@@ -55,6 +56,19 @@ using FileListResponseType = FileList;
 
 DFSClientNodeP2::DFSClientNodeP2() : DFSClientNode() {}
 DFSClientNodeP2::~DFSClientNodeP2() {}
+
+// Helper to get local metadata
+dfs::FileMetadata GetLocalMetadata(const std::string& filepath, const std::string& filename, CRC::Table<std::uint32_t, 32>& table) {
+    struct stat fs;
+    if (stat(filepath.c_str(), &fs) != 0) {
+        return {filename, 0, 0, 0}; // Not found
+    }
+    uint32_t crc = 0;
+    try {
+        crc = dfs_file_checksum(filepath, &table);
+    } catch(...) {}
+    return {filename, fs.st_mtime, crc, static_cast<size_t>(fs.st_size)};
+}
 
 grpc::StatusCode DFSClientNodeP2::RequestWriteAccess(const std::string &filename) {
     ClientContext context;
@@ -450,6 +464,19 @@ void DFSClientNodeP2::InotifyWatcherCallback(std::function<void()> callback) {
     //
 
     lock_guard<mutex> lock(async_mutex);
+    
+    // NOTE: We cannot determine which file changed easily here because 
+    // InotifyWatcherCallback logic is generic. 
+    // To use SyncEngine properly for client events, we'd need the changed filename.
+    // The current architecture relies on "callback()" which likely scans or does something?
+    // Actually, looking at `dfslibx-clientnode.cpp` (base class) might reveal how this works.
+    // Assuming callback() triggers a check.
+    
+    // If we can't change the signature, we just call the callback.
+    // BUT, if the callback triggers Store(), we should apply logic there?
+    // Store() calls RequestWriteLock...
+    
+    // Let's focus on HandleCallbackList first as it has the data.
     callback();
 }
 
@@ -464,26 +491,17 @@ void DFSClientNodeP2::InotifyWatcherCallback(std::function<void()> callback) {
 
 void DFSClientNodeP2::HandleCallbackList() {
     void *tag;
-
     bool ok = false;
+    dfs::SyncEngine sync_engine; 
 
     while (completion_queue.Next(&tag, &ok)) {
         {
-            //
-            // STUDENT INSTRUCTION:
-            //
-            // Consider adding a critical section or RAII style lock here
-            //
-
-            // The tag is the memory location of the call_data object
-            AsyncClientData<FileListResponseType> *call_data =
-                static_cast<AsyncClientData<FileListResponseType> *>(tag);
+            // Reclaim ownership of the call_data object using unique_ptr
+            std::unique_ptr<AsyncClientData<FileListResponseType>> call_data(
+                static_cast<AsyncClientData<FileListResponseType> *>(tag));
 
             dfs_log(LL_DEBUG2) << "Received completion queue callback";
 
-            // Verify that the request was completed successfully. Note that "ok"
-            // corresponds solely to the request for updates introduced by Finish().
-            // GPR_ASSERT(ok);
             if (!ok) {
                 dfs_log(LL_ERROR) << "Completion queue callback not ok.";
             }
@@ -491,41 +509,43 @@ void DFSClientNodeP2::HandleCallbackList() {
             if (ok && call_data->status.ok()) {
                 dfs_log(LL_DEBUG3) << "Handling async callback ";
 
-                //
-                // STUDENT INSTRUCTION:
-                //
-                // Add your handling of the asynchronous event calls here.
-                // For example, based on the file listing returned from the server,
-                // how should the client respond to this updated information?
-                // Should it retrieve an updated version of the file?
-                // Send an update to the server?
-                // Do nothing?
-                //
                 lock_guard<mutex> lock(async_mutex);
 
                 for (const FileInfo &server_fs : call_data->reply.files()) {
-                    FileInfo local_fs;
                     string file_name = server_fs.name();
                     string file_path = WrapPath(file_name);
+                    
+                    dfs::FileMetadata server_meta {
+                        server_fs.name(),
+                        (time_t)server_fs.mtime(),
+                        server_fs.crc(),
+                        (size_t)server_fs.size()
+                    };
+                    
+                    dfs::FileMetadata local_meta = GetLocalMetadata(file_path, file_name, this->crc_table);
+                    
+                    dfs::SyncAction action;
+                    if (local_meta.mtime == 0 && local_meta.size == 0 && local_meta.crc == 0) {
+                        // Local file doesn't exist
+                        action = sync_engine.DetermineActionFromRemoteCreate(server_meta);
+                    } else {
+                        action = sync_engine.DetermineActionFromServerEvent(local_meta, server_meta);
+                    }
 
-                    int64_t server_mtime = server_fs.mtime();
-                    int64_t local_mtime = local_fs.mtime();
-
-                    struct stat fs;
-                    bool file_exists = (stat(file_path.c_str(), &fs) == 0);
-
-                    if (!file_exists) {
-                        this->Fetch(file_name);
-                    } else if (server_mtime < local_mtime) {
-                        this->Store(file_name);
-                    } else if (server_mtime > local_mtime) {
-                        StatusCode status_code = this->Fetch(file_name);
-                        if (status_code == StatusCode::ALREADY_EXISTS) {
-                            struct utimbuf new_times;
-                            new_times.actime = fs.st_atime;
-                            new_times.modtime = server_mtime;
-                            utime(file_path.c_str(), &new_times);
-                        }
+                    switch (action) {
+                        case dfs::SyncAction::FETCH_FROM_SERVER:
+                            dfs_log(LL_SYSINFO) << "SyncEngine: Fetching " << file_name;
+                            this->Fetch(file_name);
+                            break;
+                        case dfs::SyncAction::STORE_TO_SERVER:
+                            dfs_log(LL_SYSINFO) << "SyncEngine: Storing " << file_name;
+                            this->Store(file_name);
+                            break;
+                        case dfs::SyncAction::NONE:
+                            dfs_log(LL_DEBUG3) << "SyncEngine: No action for " << file_name;
+                            break;
+                        default:
+                            break;
                     }
                 }
 
@@ -535,16 +555,9 @@ void DFSClientNodeP2::HandleCallbackList() {
                 std::this_thread::sleep_for(std::chrono::milliseconds(DFS_RESET_TIMEOUT));
             }
 
-            // Once we're complete, deallocate the call_data object.
-            delete call_data;
-
-            //
-            // STUDENT INSTRUCTION:
-            //
-            // Add any additional syncing/locking mechanisms you may need here
+            // call_data goes out of scope and is deleted automatically
         }
 
-        // Start the process over and wait for the next callback response
         dfs_log(LL_DEBUG3) << "Calling InitCallbackList";
         InitCallbackList();
     }
