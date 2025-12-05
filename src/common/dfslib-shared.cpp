@@ -1,10 +1,12 @@
-#include <string>
-#include <iostream>
-#include <fstream>
-#include <cstddef>
+#include "dfs/dfslib-shared.h"
+
 #include <sys/stat.h>
 
-#include "dfs/dfslib-shared.h"
+#include <cstddef>
+#include <fstream>
+#include <iostream>
+#include <string>
+
 #include "dfs-service.grpc.pb.h"
 
 // Global log level used throughout the system

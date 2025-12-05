@@ -1,20 +1,20 @@
 #ifndef PR4_DFSLIB_SHARED_H
 #define PR4_DFSLIB_SHARED_H
 
-#include <algorithm>
-#include <cctype>
-#include <locale>
-#include <cstddef>
-#include <iostream>
-#include <sstream>
-#include <fstream>
-#include <string>
-#include <thread>
 #include <sys/stat.h>
 
-#include "utils/dfs-utils.h"
-#include "dfs-service.grpc.pb.h"
+#include <algorithm>
+#include <cctype>
+#include <cstddef>
+#include <fstream>
+#include <iostream>
+#include <locale>
+#include <sstream>
+#include <string>
+#include <thread>
 
+#include "dfs-service.grpc.pb.h"
+#include "utils/dfs-utils.h"
 
 //
 // STUDENT INSTRUCTION
@@ -40,7 +40,7 @@ struct NotifyStruct {
     FileDescriptor fd;
     WatchDescriptor wd;
     uint event_type;
-    std::thread * thread;
+    std::thread* thread;
     InotifyCallback callback;
 };
 
@@ -56,6 +56,4 @@ struct EventStruct {
 // Add any additional shared code here
 //
 
-
 #endif
-

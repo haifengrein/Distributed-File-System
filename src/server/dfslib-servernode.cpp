@@ -1,42 +1,43 @@
+#include "dfs/dfslib-servernode.h"
+
+#include <dirent.h>
+#include <errno.h>
+#include <getopt.h>
+#include <google/protobuf/util/time_util.h>
+#include <grpcpp/grpcpp.h>
+#include <sys/stat.h>
+#include <utime.h>
+
+#include <chrono>
+#include <condition_variable>
+#include <cstdio>
+#include <fstream>
+#include <iostream>
 #include <map>
 #include <mutex>
 #include <shared_mutex>
-#include <condition_variable>
-#include <chrono>
-#include <cstdio>
 #include <string>
 #include <thread>
-#include <errno.h>
-#include <iostream>
-#include <fstream>
-#include <getopt.h>
-#include <dirent.h>
-#include <sys/stat.h>
-#include <grpcpp/grpcpp.h>
-#include <google/protobuf/util/time_util.h>
-#include <utime.h>
 
 #include "dfs-service.grpc.pb.h"
+#include "dfs/dfslib-shared.h"
 #include "dfs/dfslibx-call-data.h"
 #include "dfs/dfslibx-service-runner.h"
-#include "dfs/dfslib-shared.h"
-#include "dfs/dfslib-servernode.h"
 
-using grpc::Status;
 using grpc::Server;
-using grpc::StatusCode;
+using grpc::ServerBuilder;
+using grpc::ServerContext;
 using grpc::ServerReader;
 using grpc::ServerWriter;
-using grpc::ServerContext;
-using grpc::ServerBuilder;
+using grpc::Status;
+using grpc::StatusCode;
 
 using dfs_service::DFSService;
 using namespace dfs_service;
 using namespace std;
 
-using google::protobuf::util::TimeUtil;
 using google::protobuf::Timestamp;
-
+using google::protobuf::util::TimeUtil;
 
 //
 // STUDENT INSTRUCTION:
@@ -47,7 +48,6 @@ using google::protobuf::Timestamp;
 //
 using FileRequestType = FileListRequest;
 using FileListResponseType = FileList;
-
 
 extern dfs_log_level_e DFS_LOG_LEVEL;
 
@@ -75,12 +75,9 @@ extern dfs_log_level_e DFS_LOG_LEVEL;
 //
 //      - Hint: as the crc checksum is a simple integer, you can pass it around inside your message types.
 //
-class DFSServiceImpl final :
-    public DFSService::WithAsyncMethod_CallbackList<DFSService::Service>,
-        public DFSCallDataManager<FileRequestType , FileListResponseType> {
-
+class DFSServiceImpl final : public DFSService::WithAsyncMethod_CallbackList<DFSService::Service>,
+                             public DFSCallDataManager<FileRequestType, FileListResponseType> {
 private:
-
     /** The runner service used to start the service and manage asynchronicity **/
     DFSServiceRunner<FileRequestType, FileListResponseType> runner;
 
@@ -96,27 +93,21 @@ private:
     /** The vector of queued tags used to manage asynchronous requests **/
     std::vector<QueueRequest<FileRequestType, FileListResponseType>> queued_tags;
 
-
     /**
      * Prepend the mount path to the filename.
      *
      * @param filepath
      * @return
      */
-    const std::string WrapPath(const std::string &filepath) {
-        return this->mount_path + filepath;
-    }
+    const std::string WrapPath(const std::string& filepath) { return this->mount_path + filepath; }
 
     /** CRC Table kept in memory for faster calculations **/
     CRC::Table<std::uint32_t, 32> crc_table;
 
-    
-    map<string, string>file_locks;
+    map<string, string> file_locks;
     mutex lock_mutex;
 
-
-    bool IsFileLocked(const string & file_name, const std::string &client_id) {
-
+    bool IsFileLocked(const string& file_name, const std::string& client_id) {
         dfs_log(LL_DEBUG2) << "Checking if file is locked: " << file_name;
 
         auto lock_iter = file_locks.find(file_name);
@@ -132,8 +123,7 @@ private:
         return true;
     }
 
-
-    bool ObtainFileLock(const string &file_name, const string &client_id) {
+    bool ObtainFileLock(const string& file_name, const string& client_id) {
         lock_guard<std::mutex> gurad(lock_mutex);
         dfs_log(LL_DEBUG2) << "Attempting to lock file: " << file_name;
 
@@ -146,8 +136,8 @@ private:
         return false;
     }
 
-    bool ReleaseFileLock(const string &file_name) {
-        lock_guard<std::mutex> guard (lock_mutex);
+    bool ReleaseFileLock(const string& file_name) {
+        lock_guard<std::mutex> guard(lock_mutex);
         dfs_log(LL_DEBUG2) << "Releasing lock for file: " << file_name;
 
         if (file_locks.erase(file_name) > 0) {
@@ -158,26 +148,18 @@ private:
         return false;
     }
 
-
 public:
-
-    DFSServiceImpl(const std::string& mount_path, const std::string& server_address, int num_async_threads):
-        mount_path(mount_path), crc_table(CRC::CRC_32()) {
-
+    DFSServiceImpl(const std::string& mount_path, const std::string& server_address, int num_async_threads)
+        : mount_path(mount_path), crc_table(CRC::CRC_32()) {
         this->runner.SetService(this);
         this->runner.SetAddress(server_address);
         this->runner.SetNumThreads(num_async_threads);
-        this->runner.SetQueuedRequestsCallback([&]{ this->ProcessQueuedRequests(); });
-
+        this->runner.SetQueuedRequestsCallback([&] { this->ProcessQueuedRequests(); });
     }
 
-    ~DFSServiceImpl() {
-        this->runner.Shutdown();
-    }
+    ~DFSServiceImpl() { this->runner.Shutdown(); }
 
-    void Run() {
-        this->runner.Run();
-    }
+    void Run() { this->runner.Run(); }
 
     /**
      * Request callback for asynchronous requests
@@ -193,18 +175,14 @@ public:
      * @param cq
      * @param tag
      */
-    void RequestCallback(grpc::ServerContext* context,
-                         FileRequestType* request,
+    void RequestCallback(grpc::ServerContext* context, FileRequestType* request,
                          grpc::ServerAsyncResponseWriter<FileListResponseType>* response,
-                         grpc::ServerCompletionQueue* cq,
-                         void* tag) {
-
+                         grpc::ServerCompletionQueue* cq, void* tag) {
         {
             std::lock_guard<std::mutex> lock(queue_mutex);
             this->queued_tags.emplace_back(context, request, response, cq, tag);
         }
         queue_cv.notify_one();
-
     }
 
     /**
@@ -222,7 +200,6 @@ public:
      */
 
     void ProcessCallback(ServerContext* context, FileRequestType* request, FileListResponseType* response) {
-
         //
         // STUDENT INSTRUCTION:
         //
@@ -239,7 +216,7 @@ public:
 
         Status status = this->ListFiles(context, &dummy_request, response);
 
-        if(!status.ok()){
+        if (!status.ok()) {
             dfs_log(LL_ERROR) << "ProcessCallback Failed";
             return;
         }
@@ -249,8 +226,7 @@ public:
      * Processes the queued requests in the queue thread
      */
     void ProcessQueuedRequests() {
-        while(true) {
-
+        while (true) {
             //
             // STUDENT INSTRUCTION:
             //
@@ -261,28 +237,27 @@ public:
             // may add any additional code you feel is necessary.
             //
 
-
             // Guarded section for queue
             {
                 dfs_log(LL_DEBUG2) << "Waiting for queue guard";
                 std::unique_lock<std::mutex> lock(queue_mutex);
-                
+
                 // Wait until there are queued tags (avoids busy loop)
                 queue_cv.wait(lock, [this] { return !this->queued_tags.empty(); });
 
-                for(QueueRequest<FileRequestType, FileListResponseType>& queue_request : this->queued_tags) {
-                    this->RequestCallbackList(queue_request.context, queue_request.request,
-                        queue_request.response, queue_request.cq, queue_request.cq, queue_request.tag);
+                for (QueueRequest<FileRequestType, FileListResponseType>& queue_request : this->queued_tags) {
+                    this->RequestCallbackList(queue_request.context, queue_request.request, queue_request.response,
+                                              queue_request.cq, queue_request.cq, queue_request.tag);
                     queue_request.finished = true;
                 }
 
                 // any finished tags first
-                this->queued_tags.erase(std::remove_if(
-                    this->queued_tags.begin(),
-                    this->queued_tags.end(),
-                    [](QueueRequest<FileRequestType, FileListResponseType>& queue_request) { return queue_request.finished; }
-                ), this->queued_tags.end());
-
+                this->queued_tags.erase(
+                    std::remove_if(this->queued_tags.begin(), this->queued_tags.end(),
+                                   [](QueueRequest<FileRequestType, FileListResponseType>& queue_request) {
+                                       return queue_request.finished;
+                                   }),
+                    this->queued_tags.end());
             }
         }
     }
@@ -294,12 +269,11 @@ public:
     // the implementations of your rpc protocol methods.
     //
 
-    Status RequestWriteLock(ServerContext* context, const WriteLockRequest* request, 
+    Status RequestWriteLock(ServerContext* context, const WriteLockRequest* request,
                             WriteLockResponse* response) override {
-
         dfs_log(LL_DEBUG2) << "[RequestWriteLock] Received WriteLock request for file: " << request->filename();
         if (context->IsCancelled()) {
-        dfs_log(LL_ERROR) << "[RequestWriteLock] Request cancelled by the client or deadline exceeded.";
+            dfs_log(LL_ERROR) << "[RequestWriteLock] Request cancelled by the client or deadline exceeded.";
             return ::grpc::Status(StatusCode::DEADLINE_EXCEEDED, "Request cancelled or deadline exceeded.");
         }
 
@@ -307,9 +281,10 @@ public:
         string client_id = request->client_id();
 
         bool lock_obtained = ObtainFileLock(request->filename(), request->client_id());
-        
+
         if (lock_obtained) {
-            dfs_log(LL_SYSINFO) << "[RequestWriteLock] Write lock granted for file: " << file_name << " and Client: " << client_id;
+            dfs_log(LL_SYSINFO) << "[RequestWriteLock] Write lock granted for file: " << file_name
+                                << " and Client: " << client_id;
             response->set_success(true);
             return Status::OK;
         } else {
@@ -324,25 +299,22 @@ public:
         return Status(StatusCode::INTERNAL, "Failed to obtain lock for file.");
     }
 
-    Status StoreFile(ServerContext* context,
-                 ServerReader<StoreRequest>* reader,
-                 StoreResponse* response) override {
-
+    Status StoreFile(ServerContext* context, ServerReader<StoreRequest>* reader, StoreResponse* response) override {
         StoreRequest request;
         ofstream ofs_obj;
         string filename, filepath;
         int client_file_mtime;
 
         bool isFirstChunk = true;
-        uint32_t client_crc = 0; 
+        uint32_t client_crc = 0;
 
         dfs_log(LL_SYSINFO) << "[StoreFile] Starting to process file: " << filename;
 
         try {
-            while(reader->Read(&request)) {
+            while (reader->Read(&request)) {
                 if (isFirstChunk) {
                     filename = request.file_name();
-                    client_crc = request.crc(); 
+                    client_crc = request.crc();
                     client_file_mtime = request.mtime();
                     filepath = WrapPath(filename);
                     dfs_log(LL_DEBUG2) << "[StoreFile] FirstChunk received, Writing date chunk to file: " << filename;
@@ -353,15 +325,15 @@ public:
                         struct utimbuf mtime;
                         mtime.modtime = client_file_mtime;
                         utime(filepath.c_str(), &mtime);
-                        ReleaseFileLock(filename); 
+                        ReleaseFileLock(filename);
                         return Status(StatusCode::ALREADY_EXISTS, "File on server is identical to client's version.");
                     }
-                    
-                    ofs_obj.open(filepath, ios::trunc); 
+
+                    ofs_obj.open(filepath, ios::trunc);
                     if (!ofs_obj.is_open()) {
                         int err = errno;
                         const char* errMsg = strerror(err);
-                        ReleaseFileLock(filename); 
+                        ReleaseFileLock(filename);
                         dfs_log(LL_ERROR) << "[StoreFile] Failed to open file: " << filepath << ", Error: " << errMsg;
                         return Status(grpc::INTERNAL, "Failed to open file for writing. Error: " + string(errMsg));
                     }
@@ -370,26 +342,25 @@ public:
 
                 ofs_obj.write(request.chunk().data(), request.chunk().size());
                 if (ofs_obj.fail()) {
-                    ReleaseFileLock(filename); 
+                    ReleaseFileLock(filename);
                     dfs_log(LL_ERROR) << "[StoreFile] Failed to write data to file: " << filename;
                     return Status(grpc::INTERNAL, "Failed to write data to file.");
                 }
             }
 
             if (context->IsCancelled()) {
-                ReleaseFileLock(filename); 
+                ReleaseFileLock(filename);
                 dfs_log(LL_ERROR) << "[StoreFile] Request cancelled by the client.";
                 return Status(grpc::DEADLINE_EXCEEDED, "Request cancelled by the client.");
             }
 
         } catch (const exception& e) {
-            ReleaseFileLock(filename); // Release lock due to exception
+            ReleaseFileLock(filename);  // Release lock due to exception
             dfs_log(LL_ERROR) << "[StoreFile] Exception occurred: " << e.what();
             return Status(grpc::INTERNAL, "Exception occurred: " + std::string(e.what()));
         }
         dfs_log(LL_SYSINFO) << "[StoreFile] Finished : " << filename;
         ofs_obj.close();
-        
 
         struct stat fs;
         if (stat(filepath.c_str(), &fs) != 0) {
@@ -397,87 +368,80 @@ public:
             return Status(grpc::INTERNAL, "Failed to get file info after write.");
         }
 
-        
         response->set_success(true);
         response->set_file_name(filename);
 
-        ReleaseFileLock(filename); 
-        
+        ReleaseFileLock(filename);
+
         return Status::OK;
     }
-        
-        Status FetchFile(ServerContext* context, const FetchRequest* request,
-                    ServerWriter<FetchResponse>* writer) override {
 
-            string filename = request->file_name();
-            string filepath = WrapPath(filename);
-            ifstream file_stream(filepath, ios::binary);
-            uint32_t client_crc = request->crc(); // CRC provided by client
-            printf("This is crc: %d", client_crc);
-
-            dfs_log(LL_SYSINFO) << "[FetchFile] Attempting to fetch file: " << filepath;
-
-            if (!file_stream.is_open()) {
-                dfs_log(LL_ERROR) << "[FetchFile] File not found: " << filepath;
-                return Status(grpc::NOT_FOUND, "File not found.");
-            }
-
-            try {
-
-                FetchResponse response;
-                char buffer[4096];
-                uint32_t server_crc = dfs_file_checksum(filepath, &crc_table);
-
-                while (!file_stream.eof()) {
-                    file_stream.read(buffer, sizeof(buffer));
-                    int bytes_read = file_stream.gcount();
-                    response.set_chunk(buffer, bytes_read);
-                    response.set_file_name(filename);
-                    response.set_crc(server_crc);
-                    printf("This is crc: %d", server_crc);
-                    response.set_client_id(request->client_id());
-
-                    if (!writer->Write(response)) {
-                        dfs_log(LL_ERROR) << "[FetchFile] Failed to send data to client: " << filename;
-                       
-                        return Status(grpc::UNKNOWN, "Failed to send data to client.");
-                    }
-
-                    if (context->IsCancelled()) {
-                        dfs_log(LL_ERROR) << "[FetchFile] Request cancelled by the client.";
-                    
-                        return Status(grpc::DEADLINE_EXCEEDED, "Request cancelled by the client.");
-                    }
-                }
-
-                file_stream.close();
-                
-                dfs_log(LL_SYSINFO) << "[FetchFile] File fetch successful: " << filepath;
-                return Status::OK;
-            } catch (const std::exception& e) {
-                
-                dfs_log(LL_ERROR) << "[FetchFile] Exception occurred: " << e.what();
-                return Status(grpc::INTERNAL, "Exception occurred during fetch.");
-            }
-    }
-
-    Status GetFileStatus(ServerContext* context, 
-            const StatusRequest* request, 
-            FileInfo* response) override {
-
+    Status FetchFile(ServerContext* context, const FetchRequest* request,
+                     ServerWriter<FetchResponse>* writer) override {
         string filename = request->file_name();
         string filepath = WrapPath(filename);
-        
+        ifstream file_stream(filepath, ios::binary);
+        uint32_t client_crc = request->crc();  // CRC provided by client
+        printf("This is crc: %d", client_crc);
+
+        dfs_log(LL_SYSINFO) << "[FetchFile] Attempting to fetch file: " << filepath;
+
+        if (!file_stream.is_open()) {
+            dfs_log(LL_ERROR) << "[FetchFile] File not found: " << filepath;
+            return Status(grpc::NOT_FOUND, "File not found.");
+        }
+
+        try {
+            FetchResponse response;
+            char buffer[4096];
+            uint32_t server_crc = dfs_file_checksum(filepath, &crc_table);
+
+            while (!file_stream.eof()) {
+                file_stream.read(buffer, sizeof(buffer));
+                int bytes_read = file_stream.gcount();
+                response.set_chunk(buffer, bytes_read);
+                response.set_file_name(filename);
+                response.set_crc(server_crc);
+                printf("This is crc: %d", server_crc);
+                response.set_client_id(request->client_id());
+
+                if (!writer->Write(response)) {
+                    dfs_log(LL_ERROR) << "[FetchFile] Failed to send data to client: " << filename;
+
+                    return Status(grpc::UNKNOWN, "Failed to send data to client.");
+                }
+
+                if (context->IsCancelled()) {
+                    dfs_log(LL_ERROR) << "[FetchFile] Request cancelled by the client.";
+
+                    return Status(grpc::DEADLINE_EXCEEDED, "Request cancelled by the client.");
+                }
+            }
+
+            file_stream.close();
+
+            dfs_log(LL_SYSINFO) << "[FetchFile] File fetch successful: " << filepath;
+            return Status::OK;
+        } catch (const std::exception& e) {
+            dfs_log(LL_ERROR) << "[FetchFile] Exception occurred: " << e.what();
+            return Status(grpc::INTERNAL, "Exception occurred during fetch.");
+        }
+    }
+
+    Status GetFileStatus(ServerContext* context, const StatusRequest* request, FileInfo* response) override {
+        string filename = request->file_name();
+        string filepath = WrapPath(filename);
+
         struct stat fs;
         if (stat(filepath.c_str(), &fs) != 0) {
             dfs_log(LL_ERROR) << "[GetFileStatus] Failed to get file attributes: " << filepath;
-            
+
             return Status(grpc::NOT_FOUND, "File not found.");
         }
 
         if (context->IsCancelled()) {
             dfs_log(LL_ERROR) << "[GetFileStatus] Request cancelled by the client.";
-            
+
             return Status(grpc::DEADLINE_EXCEEDED, "Request cancelled by the client.");
         }
 
@@ -488,16 +452,12 @@ public:
 
         uint32_t server_crc = dfs_file_checksum(filepath, &crc_table);
         response->set_crc(server_crc);
-        
+
         dfs_log(LL_SYSINFO) << "[GetFileStatus] File status retrieved for: " << filename;
         return Status::OK;
-        }
+    }
 
-
-    Status DeleteFile(ServerContext* context, 
-        const DeleteRequest* request, 
-        DeleteResponse* response) override {
-
+    Status DeleteFile(ServerContext* context, const DeleteRequest* request, DeleteResponse* response) override {
         string filename = request->file_name();
         string client_id = request->client_id();
         string filepath = WrapPath(filename);
@@ -512,7 +472,6 @@ public:
             ReleaseFileLock(filename);
             return Status(grpc::NOT_FOUND, "File not found. Error: " + std::string(errMsg));
         }
-
 
         if (context->IsCancelled()) {
             dfs_log(LL_ERROR) << "[DeleteFile] Request cancelled by the client or deadline exceeded.";
@@ -537,10 +496,8 @@ public:
     Status ListFiles(ServerContext* context, const FileListRequest* request, FileList* response) override {
         string directory_path = WrapPath("");
 
-        
         dfs_log(LL_SYSINFO) << "[ListFiles] Attempting to list files in directory: " << directory_path;
 
-        
         DIR* dir = opendir(directory_path.c_str());
         if (dir == nullptr) {
             int err = errno;
@@ -551,9 +508,8 @@ public:
 
         dirent* entry;
         while ((entry = readdir(dir)) != nullptr) {
-
             context->AsyncNotifyWhenDone(NULL);
-            
+
             if (context->IsCancelled()) {
                 dfs_log(LL_ERROR) << "[ListFiles] Request cancelled by the client or deadline exceeded.";
                 closedir(dir);
@@ -571,10 +527,9 @@ public:
             struct stat file_stat;
             if (stat(file_path.c_str(), &file_stat) != 0) {
                 dfs_log(LL_ERROR) << "[ListFiles] Failed to get stats for file: " << file_name;
-                continue; 
+                continue;
             }
 
-            
             FileInfo* file_info = response->add_files();
             file_info->set_name(file_name);
             file_info->set_size(file_stat.st_size);
@@ -590,8 +545,6 @@ public:
 
         return Status::OK;
     }
-
-
 };
 
 //
@@ -608,27 +561,22 @@ public:
  *
  * @param mount_path
  */
-DFSServerNode::DFSServerNode(const std::string &server_address,
-        const std::string &mount_path,
-        int num_async_threads,
-        std::function<void()> callback) :
-        server_address(server_address),
-        mount_path(mount_path),
-        num_async_threads(num_async_threads),
-        grader_callback(callback) {}
+DFSServerNode::DFSServerNode(const std::string& server_address, const std::string& mount_path, int num_async_threads,
+                             std::function<void()> callback)
+    : server_address(server_address),
+      mount_path(mount_path),
+      num_async_threads(num_async_threads),
+      grader_callback(callback) {}
 /**
  * Server shutdown
  */
-DFSServerNode::~DFSServerNode() noexcept {
-    dfs_log(LL_SYSINFO) << "DFSServerNode shutting down";
-}
+DFSServerNode::~DFSServerNode() noexcept { dfs_log(LL_SYSINFO) << "DFSServerNode shutting down"; }
 
 /**
  * Start the DFSServerNode server
  */
 void DFSServerNode::Start() {
     DFSServiceImpl service(this->mount_path, this->server_address, this->num_async_threads);
-
 
     dfs_log(LL_SYSINFO) << "DFSServerNode server listening on " << this->server_address;
     service.Run();

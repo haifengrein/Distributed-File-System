@@ -1,22 +1,20 @@
 #ifndef PR4_DFSLIB_CLIENTNODE_H
 #define PR4_DFSLIB_CLIENTNODE_H
 
+#include <grpcpp/grpcpp.h>
+#include <limits.h>
+
+#include <chrono>
+#include <map>
+#include <mutex>
 #include <string>
 #include <vector>
-#include <map>
-#include <limits.h>
-#include <chrono>
-#include <mutex>
 
-#include <grpcpp/grpcpp.h>
-
-#include "dfs/dfslibx-clientnode.h"
 #include "dfs-service.grpc.pb.h"
+#include "dfs/dfslibx-clientnode.h"
 
 class DFSClientNodeP2 : public DFSClientNode {
-
 public:
-
     //
     // STUDENT INSTRUCTION:
     //
@@ -42,7 +40,7 @@ public:
      * @param filename
      * @return bool
      */
-    grpc::StatusCode RequestWriteAccess(const std::string& filename) override ;
+    grpc::StatusCode RequestWriteAccess(const std::string& filename) override;
 
     /**
      * Store a file from the mount path on to the RPC server
@@ -50,7 +48,7 @@ public:
      * @param filename
      * @return grpc::StatusCode
      */
-    grpc::StatusCode Store(const std::string& filename) override ;
+    grpc::StatusCode Store(const std::string& filename) override;
 
     /**
      * Fetch a file from the RPC server and put it in the mount path
@@ -58,7 +56,7 @@ public:
      * @param filename
      * @return grpc::StatusCode
      */
-    grpc::StatusCode Fetch(const std::string& filename) override ;
+    grpc::StatusCode Fetch(const std::string& filename) override;
 
     /**
      * Delete a file from the RPC server
@@ -66,7 +64,7 @@ public:
      * @param filename
      * @return grpc::StatusCode
      */
-    grpc::StatusCode Delete(const std::string& filename) override ;
+    grpc::StatusCode Delete(const std::string& filename) override;
 
     /**
      * Get or print a list from the RPC server.
@@ -85,7 +83,7 @@ public:
      * @param display
      * @return grpc::StatusCode
      */
-    grpc::StatusCode List(std::map<std::string,int>* file_map = NULL, bool display = false) override;
+    grpc::StatusCode List(std::map<std::string, int>* file_map = NULL, bool display = false) override;
 
     /**
      * Get or print the status details for a given filename,
@@ -117,7 +115,7 @@ public:
     /**
      * Initialize the callback list
      */
-     void InitCallbackList() override;
+    void InitCallbackList() override;
 
     /**
      * Watcher wrapper
@@ -142,7 +140,5 @@ public:
     // You may add any additional declarations of methods or variables that you need here.
     //
     std::mutex async_mutex;
-
-
 };
 #endif

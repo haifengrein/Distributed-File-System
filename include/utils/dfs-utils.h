@@ -1,10 +1,11 @@
 #ifndef PR4_DFS_UTILS_H
 #define PR4_DFS_UTILS_H
 
-#include <string>
+#include <sys/stat.h>
+
 #include <fstream>
 #include <sstream>
-#include <sys/stat.h>
+#include <string>
 
 #define CRCPP_USE_CPP11
 #include "utils/CRC.h"
@@ -17,12 +18,11 @@
  * @param path
  * @return
  */
-inline std::string dfs_clean_path(const std::string& path) {
+inline std::string dfs_clean_path(const std::string &path) {
     std::string sep = "/";
     int sep_len = sep.length();
     std::string mount_path = path;
-    if (mount_path.length() >= 1 && (
-                mount_path.compare(mount_path.length() - sep_len, sep_len, sep) != 0)) {
+    if (mount_path.length() >= 1 && (mount_path.compare(mount_path.length() - sep_len, sep_len, sep) != 0)) {
         mount_path += "/";
     }
     return mount_path;
@@ -36,7 +36,6 @@ inline std::string dfs_clean_path(const std::string& path) {
  * @return
  */
 inline std::uint32_t dfs_file_checksum(const std::string &filepath, CRC::Table<std::uint32_t, 32> *table) {
-
     struct stat st;
     size_t file_size;
     std::uint32_t crc = 0;
@@ -74,35 +73,29 @@ inline std::uint32_t dfs_file_checksum(const std::string &filepath, CRC::Table<s
         return 0;
     }
 
-    while(chunk_count != chunk_sequence) {
-        size_t read_size = (file_size - current_position < buffer_size) ?
-                           file_size - current_position :
-                           buffer_size;
+    while (chunk_count != chunk_sequence) {
+        size_t read_size = (file_size - current_position < buffer_size) ? file_size - current_position : buffer_size;
 
         if (!stream.read(buffer, read_size)) {
             return crc;
-
         }
 
         crc = CRC::Calculate(buffer, sizeof(char) * buffer_size, *table, crc);
 
         chunk_sequence++;
         current_position = stream.tellg();
-
     }
 
     return crc;
-
 }
 
-
-#include "spdlog/spdlog.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
+#include "spdlog/spdlog.h"
 
 /**
  * Logging levels
  */
-enum dfs_log_level_e {LL_SYSINFO, LL_ERROR, LL_DEBUG, LL_DEBUG2, LL_DEBUG3};
+enum dfs_log_level_e { LL_SYSINFO, LL_ERROR, LL_DEBUG, LL_DEBUG2, LL_DEBUG3 };
 
 /**
  * Get the shared spdlog logger instance (stderr)
@@ -118,7 +111,7 @@ inline std::shared_ptr<spdlog::logger> get_dfs_logger() {
             auto l = spdlog::stderr_color_mt("dfs_logger");
             // Modern pattern: [Time] [Level] [Thread] Message
             l->set_pattern("[%H:%M:%S.%e] [%^%l%$] [t:%t] %v");
-            l->set_level(spdlog::level::trace); 
+            l->set_level(spdlog::level::trace);
             return l;
         } catch (const spdlog::spdlog_ex &ex) {
             // Fallback if something goes wrong
@@ -134,34 +127,45 @@ inline std::shared_ptr<spdlog::logger> get_dfs_logger() {
  * This wrapper maintains compatibility with the existing
  * dfs_log(level) << "message" syntax.
  */
-class DFSLog
-{
-    private:
-        std::ostringstream buffer;
-        dfs_log_level_e level;
+class DFSLog {
+private:
+    std::ostringstream buffer;
+    dfs_log_level_e level;
 
-    public:
-        DFSLog(dfs_log_level_e l = LL_ERROR) : level(l) {}
+public:
+    DFSLog(dfs_log_level_e l = LL_ERROR) : level(l) {}
 
-        template <typename  T>
-            DFSLog & operator<<(T const & value) {
-                buffer << value;
-                return *this;
-            }
+    template <typename T>
+    DFSLog &operator<<(T const &value) {
+        buffer << value;
+        return *this;
+    }
 
-        ~DFSLog() {
-            auto logger = get_dfs_logger();
-            std::string msg = buffer.str();
-            
-            switch (level) {
-                case LL_SYSINFO: logger->info(msg); break;
-                case LL_ERROR:   logger->error(msg); break;
-                case LL_DEBUG:   logger->debug(msg); break;
-                case LL_DEBUG2:  logger->trace(msg); break;
-                case LL_DEBUG3:  logger->trace(msg); break;
-                default:         logger->debug(msg); break;
-            }
+    ~DFSLog() {
+        auto logger = get_dfs_logger();
+        std::string msg = buffer.str();
+
+        switch (level) {
+            case LL_SYSINFO:
+                logger->info(msg);
+                break;
+            case LL_ERROR:
+                logger->error(msg);
+                break;
+            case LL_DEBUG:
+                logger->debug(msg);
+                break;
+            case LL_DEBUG2:
+                logger->trace(msg);
+                break;
+            case LL_DEBUG3:
+                logger->trace(msg);
+                break;
+            default:
+                logger->debug(msg);
+                break;
         }
+    }
 };
 
 /**
@@ -172,6 +176,10 @@ extern dfs_log_level_e DFS_LOG_LEVEL;
 /**
  * Utility function for logging details to std::cerr
  */
-#define dfs_log(level) if (level > DFS_LOG_LEVEL) ; else DFSLog(level)
+#define dfs_log(level)         \
+    if (level > DFS_LOG_LEVEL) \
+        ;                      \
+    else                       \
+        DFSLog(level)
 
-#endif //PR4_DFS_LOG_H
+#endif  // PR4_DFS_LOG_H

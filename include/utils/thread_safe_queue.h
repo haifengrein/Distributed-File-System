@@ -1,15 +1,15 @@
 #ifndef DFS_THREAD_SAFE_QUEUE_H
 #define DFS_THREAD_SAFE_QUEUE_H
 
-#include <mutex>
-#include <condition_variable>
-#include <vector>
 #include <algorithm>
+#include <condition_variable>
 #include <functional>
+#include <mutex>
+#include <vector>
 
 /**
  * ThreadSafeQueue
- * 
+ *
  * A generic thread-safe queue wrapper that supports:
  * - Blocking wait for new items (Producer-Consumer pattern)
  * - Thread-safe push and access
@@ -48,16 +48,16 @@ public:
     }
 
     /**
-     * Wait until queue is not empty, then execute the processor function 
+     * Wait until queue is not empty, then execute the processor function
      * on the entire queue content (to allow batch processing if needed),
-     * or process one by one. 
-     * 
-     * NOTE: This design mimics the existing logic where the server iterates 
+     * or process one by one.
+     *
+     * NOTE: This design mimics the existing logic where the server iterates
      * over the *entire* vector of tags.
      */
     void process_all(std::function<void(T&)> processor) {
         std::unique_lock<std::mutex> lock(mtx);
-        
+
         // Wait until queue has items or shutdown is requested
         cv.wait(lock, [this] { return !queue.empty() || shutdown; });
 
@@ -91,4 +91,4 @@ public:
     }
 };
 
-#endif // DFS_THREAD_SAFE_QUEUE_H
+#endif  // DFS_THREAD_SAFE_QUEUE_H

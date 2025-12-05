@@ -1,0 +1,11 @@
+---
+Language:        Cpp
+BasedOnStyle:    Google
+IndentWidth:     4
+ColumnLimit:     120
+SortIncludes:    true
+FixNamespaceComments: true
+IncludeBlocks:   Regroup
+Standard:        c++17
+AccessModifierOffset: -4
+...

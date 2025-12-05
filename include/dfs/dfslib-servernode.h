@@ -1,17 +1,17 @@
 #ifndef PR4_DFSLIB_SERVERNODE_H
 #define PR4_DFSLIB_SERVERNODE_H
 
-#include <string>
-#include <iostream>
-#include <thread>
 #include <grpcpp/grpcpp.h>
+
+#include <iostream>
+#include <string>
+#include <thread>
 
 /**
  * DFSService is used to start up and run your DFSServiceImpl
  * based on the protobuf service you created in `proto-service.proto`.
  */
 class DFSServerNode {
-
 private:
     /** The server address information **/
     std::string server_address;
@@ -29,10 +29,8 @@ private:
     std::function<void()> grader_callback;
 
 public:
-    DFSServerNode(const std::string& server_address,
-        const std::string& mount_path,
-        int num_async_threads,
-        std::function<void()> callback);
+    DFSServerNode(const std::string& server_address, const std::string& mount_path, int num_async_threads,
+                  std::function<void()> callback);
     ~DFSServerNode();
     void Shutdown();
     void Start();

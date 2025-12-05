@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+
 #include "utils/dfs-utils.h"
 
 // Simple test for the path cleaner utility

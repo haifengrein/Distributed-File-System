@@ -1,39 +1,35 @@
 #include <getopt.h>
-#include <string>
-#include <iostream>
-#include <fstream>
+
 #include <csignal>
+#include <fstream>
+#include <iostream>
+#include <string>
 
-#include "utils/dfs-utils.h"
 #include "dfs/dfslib-servernode.h"
+#include "utils/dfs-utils.h"
 
-void HandleSignal(int signum) {
-    exit(0);
-}
+void HandleSignal(int signum) { exit(0); }
 
 void Usage() {
-    std::cout <<
-        "\nUSAGE: dfs-server-p2 [OPTIONS]\n"
-        "-a, --address <address>:       The server address to connect to (default: 0.0.0.0:50403)\n"
-        "-d, --debug_level <level>:  The debug level to use: 0, 1, 2, 3 (default: 0 = no debug, higher numbers increase verbosity)\n"
-        "-m, --mount_path <path>:       The mount storage path (default: mnt/server)\n"
-        "-n, --num_async_threads <num>: The number of asynchronous threads to generate (default: 4)\n"
-        "-h, --help:                    Show help\n\n";
+    std::cout << "\nUSAGE: dfs-server-p2 [OPTIONS]\n"
+                 "-a, --address <address>:       The server address to connect to (default: 0.0.0.0:50403)\n"
+                 "-d, --debug_level <level>:  The debug level to use: 0, 1, 2, 3 (default: 0 = no debug, higher "
+                 "numbers increase verbosity)\n"
+                 "-m, --mount_path <path>:       The mount storage path (default: mnt/server)\n"
+                 "-n, --num_async_threads <num>: The number of asynchronous threads to generate (default: 4)\n"
+                 "-h, --help:                    Show help\n\n";
     exit(1);
 }
 
 int main(int argc, char** argv) {
-
     const char* const short_opts = "a:d:m:n:h";
 
-    const option long_opts[] = {
-        {"address", optional_argument, nullptr, 'a'},
-        {"debug_level", optional_argument, nullptr, 'd'},
-        {"mount_path", optional_argument, nullptr, 'm'},
-        {"num_async_threads", optional_argument, nullptr, 'n'},
-        {"help", no_argument, nullptr, 'h'},
-        {nullptr, no_argument, nullptr, 0}
-    };
+    const option long_opts[] = {{"address", optional_argument, nullptr, 'a'},
+                                {"debug_level", optional_argument, nullptr, 'd'},
+                                {"mount_path", optional_argument, nullptr, 'm'},
+                                {"num_async_threads", optional_argument, nullptr, 'n'},
+                                {"help", no_argument, nullptr, 'h'},
+                                {nullptr, no_argument, nullptr, 0}};
 
     char option_char;
     std::string server_address = "0.0.0.0:50403";
@@ -41,8 +37,8 @@ int main(int argc, char** argv) {
     long num_async_threads = 4;
     int debug_level = static_cast<int>(LL_ERROR);
 
-    while((option_char = getopt_long(argc, argv, short_opts, long_opts, nullptr)) != -1) {
-        switch(option_char) {
+    while ((option_char = getopt_long(argc, argv, short_opts, long_opts, nullptr)) != -1) {
+        switch (option_char) {
             case 'a':
                 server_address = std::string(optarg);
                 break;
@@ -72,16 +68,15 @@ int main(int argc, char** argv) {
     if (std::getenv("DFS_VERIFY_LOGS")) {
         dfs_log(LL_SYSINFO) << ">>> VERIFICATION MODE ACTIVE <<<";
         dfs_log(LL_SYSINFO) << "SPDLOG System Ready.";
-        dfs_log(LL_ERROR)   << "Sample Error Log";
-        dfs_log(LL_DEBUG)   << "Sample Debug Log (visible if -d 1+)";
+        dfs_log(LL_ERROR) << "Sample Error Log";
+        dfs_log(LL_DEBUG) << "Sample Debug Log (visible if -d 1+)";
     }
 
     signal(SIGINT, HandleSignal);
     signal(SIGTERM, HandleSignal);
 
-    DFSServerNode server_node(server_address, dfs_clean_path(mount_path), num_async_threads, [&]{ return; });
+    DFSServerNode server_node(server_address, dfs_clean_path(mount_path), num_async_threads, [&] { return; });
     server_node.Start();
 
     return 0;
-
 }

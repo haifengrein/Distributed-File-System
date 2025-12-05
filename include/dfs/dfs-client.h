@@ -1,105 +1,99 @@
 #ifndef _DFS_CLIENT_H
 #define _DFS_CLIENT_H
 
-#include <tuple>
 #include <string>
+#include <tuple>
 #include <vector>
 
-#include "dfs/dfslib-shared.h"
 #include "dfs/dfslib-clientnode.h"
+#include "dfs/dfslib-shared.h"
 
 class DFSClient {
+protected:
+    // The deadline timeout in milliseconds
+    int deadline_timeout;
 
-    protected:
+    // The mount path
+    std::string mount_path;
 
-        // The deadline timeout in milliseconds
-        int deadline_timeout;
+    // The inotify callback method
+    InotifyCallback callback;
 
-        // The mount path
-        std::string mount_path;
+    // The current client node
+    DFSClientNodeP2 client_node;
 
-        // The inotify callback method
-        InotifyCallback callback;
+    // The inotify events
+    std::vector<NotifyStruct> events;
 
-        // The current client node
-        DFSClientNodeP2 client_node;
+    // The sync thread
+    std::thread thread_async;
 
-        // The inotify events
-        std::vector<NotifyStruct> events;
+public:
+    DFSClient();
+    ~DFSClient();
 
-        // The sync thread
-        std::thread thread_async;
+    /**
+     * Initializes the client node library.
+     *
+     * @param server_address
+     */
+    void InitializeClientNode(const std::string& server_address);
 
-    public:
-        DFSClient();
-        ~DFSClient();
+    /**
+     * Handles the requested command from the user
+     *
+     * @param command
+     * @param working_directory
+     * @param filename
+     */
+    void ProcessCommand(const std::string& command, const std::string& filename);
 
-        /**
-         * Initializes the client node library.
-         *
-         * @param server_address
-         */
-        void InitializeClientNode(const std::string& server_address);
+    /**
+     * Sets the mount path on the client node. This is the path
+     * where files will be synced/cached with the server.
+     *
+     * @param path
+     */
+    void SetMountPath(const std::string& path);
 
-        /**
-         * Handles the requested command from the user
-         *
-         * @param command
-         * @param working_directory
-         * @param filename
-         */
-        void ProcessCommand(const std::string& command, const std::string& filename);
+    /**
+     * Sets the deadline timeout in milliseconds
+     *
+     * @param deadline
+     */
+    void SetDeadlineTimeout(int deadline);
 
-        /**
-         * Sets the mount path on the client node. This is the path
-         * where files will be synced/cached with the server.
-         *
-         * @param path
-         */
-        void SetMountPath(const std::string& path);
+    /**
+     * Mounts the client to the specified file path.
+     *
+     * Be default, it is mounted to the mnt/client path within the PR4 repo.
+     *
+     * @param filepath
+     */
+    void Mount(const std::string& filepath);
 
-        /**
-         * Sets the deadline timeout in milliseconds
-         *
-         * @param deadline
-         */
-        void SetDeadlineTimeout(int deadline);
+    /**
+     * Unmounts the client from the path it was mounted on previously
+     */
+    void Unmount();
 
-        /**
-         * Mounts the client to the specified file path.
-         *
-         * Be default, it is mounted to the mnt/client path within the PR4 repo.
-         *
-         * @param filepath
-         */
-        void Mount(const std::string& filepath);
+    /**
+     * Handle the iNotify events
+     *
+     * @param event_type
+     * @param filename
+     * @param instance
+     */
+    static void InotifyEventCallback(uint event_type, const std::string& filename, void* instance);
 
-        /**
-         * Unmounts the client from the path it was mounted on previously
-         */
-        void Unmount();
-
-        /**
-         * Handle the iNotify events
-         *
-         * @param event_type
-         * @param filename
-         * @param instance
-         */
-        static void InotifyEventCallback(uint event_type, const std::string& filename, void* instance);
-
-        /**
-         * Handle watch events from iNotify
-         *
-         * @param callback
-         * @param event_type
-         * @param fd
-         * @param node
-         */
-        static void InotifyWatcher(InotifyCallback callback,
-                                   uint event_type,
-                                   FileDescriptor fd,
-                                   DFSClientNode* node);
-
+    /**
+     * Handle watch events from iNotify
+     *
+     * @param callback
+     * @param event_type
+     * @param fd
+     * @param node
+     */
+    static void InotifyWatcher(InotifyCallback callback, uint event_type, FileDescriptor fd, DFSClientNode* node);
 };
 #endif

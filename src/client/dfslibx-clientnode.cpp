@@ -1,30 +1,32 @@
-#include <vector>
-#include <string>
-#include <thread>
-#include <cstdio>
-#include <chrono>
-#include <errno.h>
-#include <csignal>
-#include <iostream>
-#include <sstream>
-#include <fstream>
-#include <iomanip>
-#include <getopt.h>
-#include <unistd.h>
-#include <limits.h>
-#include <sys/inotify.h>
-#include <grpcpp/grpcpp.h>
-#include <utime.h>
-
-#include "utils/dfs-utils.h"
 #include "dfs/dfslibx-clientnode.h"
 
-using grpc::Status;
+#include <errno.h>
+#include <getopt.h>
+#include <grpcpp/grpcpp.h>
+#include <limits.h>
+#include <sys/inotify.h>
+#include <unistd.h>
+#include <utime.h>
+
+#include <chrono>
+#include <csignal>
+#include <cstdio>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <thread>
+#include <vector>
+
+#include "utils/dfs-utils.h"
+
 using grpc::Channel;
-using grpc::StatusCode;
-using grpc::ClientWriter;
-using grpc::ClientReader;
 using grpc::ClientContext;
+using grpc::ClientReader;
+using grpc::ClientWriter;
+using grpc::Status;
+using grpc::StatusCode;
 
 extern dfs_log_level_e DFS_LOG_LEVEL;
 
@@ -39,39 +41,22 @@ DFSClientNode::DFSClientNode() : mount_path("mnt/client/"), unmounting(false), c
 
 DFSClientNode::~DFSClientNode() noexcept {}
 
-void DFSClientNode::Unmount() {
-    this->unmounting = true;
-}
+void DFSClientNode::Unmount() { this->unmounting = true; }
 
-bool DFSClientNode::Unmounting() {
-    return this->unmounting;
-}
+bool DFSClientNode::Unmounting() { return this->unmounting; }
 
-const std::string DFSClientNode::ClientId() {
-    return this->client_id;
-}
+const std::string DFSClientNode::ClientId() { return this->client_id; }
 
-void DFSClientNode::CreateStub(std::shared_ptr <Channel> channel) {
+void DFSClientNode::CreateStub(std::shared_ptr<Channel> channel) {
     this->service_stub = dfs_service::DFSService::NewStub(channel);
 }
 
-void DFSClientNode::SetMountPath(const std::string &path) {
-    this->mount_path = path;
-}
+void DFSClientNode::SetMountPath(const std::string &path) { this->mount_path = path; }
 
-void DFSClientNode::SetDeadlineTimeout(int deadline) {
-    this->deadline_timeout = deadline;
-}
+void DFSClientNode::SetDeadlineTimeout(int deadline) { this->deadline_timeout = deadline; }
 
-void DFSClientNode::SetClientId(const std::string &id) {
-    this->client_id = id;
-}
+void DFSClientNode::SetClientId(const std::string &id) { this->client_id = id; }
 
-const std::string DFSClientNode::MountPath() {
-    return this->mount_path;
-};
+const std::string DFSClientNode::MountPath() { return this->mount_path; };
 
-std::string DFSClientNode::WrapPath(const std::string &filepath) {
-    return this->mount_path + filepath;
-}
-
+std::string DFSClientNode::WrapPath(const std::string &filepath) { return this->mount_path + filepath; }

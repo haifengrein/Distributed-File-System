@@ -2,8 +2,9 @@
 #define PR4_DFSCALLDATAMANAGER_H
 
 #include <grpcpp/grpcpp.h>
-#include "utils/dfs-utils.h"
+
 #include "dfs-service.grpc.pb.h"
+#include "utils/dfs-utils.h"
 
 /**
  * Virtual class meant to be inherited by the DFSServiceImpl class. It is used
@@ -16,14 +17,10 @@
 template <typename RequestT, typename ResponseT>
 class DFSCallDataManager {
 public:
-
-    virtual void RequestCallback(grpc::ServerContext* context,
-                                 RequestT* request,
-                                 grpc::ServerAsyncResponseWriter<ResponseT>* responder,
-                                 grpc::ServerCompletionQueue* cq,
+    virtual void RequestCallback(grpc::ServerContext* context, RequestT* request,
+                                 grpc::ServerAsyncResponseWriter<ResponseT>* responder, grpc::ServerCompletionQueue* cq,
                                  void* tag) {}
     virtual void ProcessCallback(grpc::ServerContext* context, RequestT* request, ResponseT* response) {}
-
 };
 
 /**
@@ -37,9 +34,7 @@ public:
  */
 template <typename RequestT, typename ResponseT>
 class DFSCallData {
-
 private:
-
     // The means of communication with the gRPC runtime for an asynchronous
     // server.
     dfs_service::DFSService::AsyncService* service;
@@ -71,14 +66,12 @@ public:
     // Take in the "service" instance (in this case representing an asynchronous
     // server) and the completion queue "cq" used for asynchronous communication
     // with the gRPC runtime.
-    DFSCallData(dfs_service::DFSService::AsyncService* service,
-        DFSCallDataManager<RequestT, ResponseT>* manager, grpc::ServerCompletionQueue* cq) :
-        service(service), manager(manager), cq(cq), responder(&ctx_), status(CREATE) {
-
+    DFSCallData(dfs_service::DFSService::AsyncService* service, DFSCallDataManager<RequestT, ResponseT>* manager,
+                grpc::ServerCompletionQueue* cq)
+        : service(service), manager(manager), cq(cq), responder(&ctx_), status(CREATE) {
         dfs_log(LL_DEBUG3) << "DFSCallDataManager[constructor]";
         // Invoke the serving logic right away.
         Proceed();
-
     }
 
     /**
@@ -124,4 +117,4 @@ public:
     }
 };
 
-#endif //PR4_DFSCALLDATAMANAGER_H
+#endif  // PR4_DFSCALLDATAMANAGER_H
