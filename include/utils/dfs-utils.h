@@ -95,44 +95,53 @@ inline std::uint32_t dfs_file_checksum(const std::string &filepath, CRC::Table<s
 
 }
 
+
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+
 /**
  * Logging levels
  */
 enum dfs_log_level_e {LL_SYSINFO, LL_ERROR, LL_DEBUG, LL_DEBUG2, LL_DEBUG3};
 
 /**
- * Simple logging class
+ * Get the shared spdlog logger instance (stderr)
+ */
+inline std::shared_ptr<spdlog::logger> get_dfs_logger() {
+    static std::shared_ptr<spdlog::logger> logger = []() {
+        try {
+            // Check if logger already exists (in case of weird linking)
+            auto existing = spdlog::get("dfs_logger");
+            if (existing) return existing;
+
+            // Create stderr logger to match original behavior (logs to cerr)
+            auto l = spdlog::stderr_color_mt("dfs_logger");
+            // Modern pattern: [Time] [Level] [Thread] Message
+            l->set_pattern("[%H:%M:%S.%e] [%^%l%$] [t:%t] %v");
+            l->set_level(spdlog::level::trace); 
+            return l;
+        } catch (const spdlog::spdlog_ex &ex) {
+            // Fallback if something goes wrong
+            return spdlog::default_logger();
+        }
+    }();
+    return logger;
+}
+
+/**
+ * Simple logging class wrapper for spdlog
  *
- * This is a simple multi-tiered logging class
- * that can be used throughout the project.
- *
- * The `dfs_log` utility defined below provides the interface
- * and acts as a streaming input that you can send information to.
- *
- * You can set the log-level when you use the `dfs-client` or `dfs-server`
- * commands.
- *
- * NOTE: during testing, the log will only output DEBUG1 and up levels (i.e., LL_DEBUG, LL_ERROR, LL_SYSINFO)
- *
- * Usage:
- *
- *      dfs_log(LL_DEBUG) << "Type your message here: " << add_a_variable << ", and more info, etc."
- *
+ * This wrapper maintains compatibility with the existing
+ * dfs_log(level) << "message" syntax.
  */
 class DFSLog
 {
     private:
         std::ostringstream buffer;
+        dfs_log_level_e level;
 
     public:
-        DFSLog(dfs_log_level_e level = LL_ERROR) {
-#ifdef DFS_GRADER
-            std::string desc = level == LL_SYSINFO ? "-S" : (level == LL_ERROR ? "!E" : ">D");
-#else
-            std::string desc = level == LL_SYSINFO ? "-- SYSINFO" : (level == LL_ERROR ? "!! ERROR" : ">> DEBUG");
-#endif
-            buffer << desc << ((level > 1) ? std::to_string(level - 1) : "") << ": ";
-        }
+        DFSLog(dfs_log_level_e l = LL_ERROR) : level(l) {}
 
         template <typename  T>
             DFSLog & operator<<(T const & value) {
@@ -141,8 +150,17 @@ class DFSLog
             }
 
         ~DFSLog() {
-            buffer << std::endl;
-            std::cerr << buffer.str();
+            auto logger = get_dfs_logger();
+            std::string msg = buffer.str();
+            
+            switch (level) {
+                case LL_SYSINFO: logger->info(msg); break;
+                case LL_ERROR:   logger->error(msg); break;
+                case LL_DEBUG:   logger->debug(msg); break;
+                case LL_DEBUG2:  logger->trace(msg); break;
+                case LL_DEBUG3:  logger->trace(msg); break;
+                default:         logger->debug(msg); break;
+            }
         }
 };
 

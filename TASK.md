@@ -2,106 +2,134 @@
 
 This document tracks the roadmap for transforming the academic Distributed File System project into a high-competitiveness resume portfolio piece.
 
-**Goal:** Demonstrate System Programming expertise (Modern C++, Concurrency), Engineering standards (CMake, Docker, CI/CD), and Observability (Distributed Tracing).
+**Goal:** Demonstrate System Programming expertise (Modern C++, Concurrency, Architecture), Engineering standards (CMake, Docker, TDD), and Observability.
+
+**Methodology:** Strict **Test-Driven Development (TDD)**. No feature or refactoring is considered complete without a corresponding passing unit test.
+
+---
 
 ## Phase 1: Environment Modernization (Critical Foundation)
 *Objective: Replicate and upgrade the legacy build environment to a standard, production-grade Docker container.*
 
 - [x] **Analysis**:
-    - [x] Analyze `environment-primary` to identify legacy dependencies (Ubuntu 20.04, custom gRPC PPA).
-- [ ] **Containerization**:
+    - [x] Analyze `environment-primary` to identify legacy dependencies.
+- [x] **Containerization**:
     - [x] Create a modern `Dockerfile` (Ubuntu 22.04 LTS).
-    - [x] Install standard `grpc` and `protobuf` from official repositories (removing reliance on course-specific PPAs).
-    - [x] Create `docker-compose.yml` for consistent building/testing.
+    - [x] Install standard `grpc` and `protobuf` from official repositories.
+    - [x] Create `docker-compose.yml`.
 - [x] **Build System Modernization**:
     - [x] Create `CMakeLists.txt` to replace `Makefile`.
-    - [x] Use modern CMake targets (`protobuf::libprotobuf`, `gRPC::grpc++`).
+    - [x] Use modern CMake targets.
 - [x] **Verification**:
     - [x] Compiling the *existing* `part2` code in the new Docker environment.
-    - [x] Fix immediate compilation errors caused by library version jumps (e.g., gRPC API changes).
 
 ## Phase 2: Structural Refactoring ("De-Studentification")
 *Objective: Remove "coursework" artifacts and establish a standard C++ project structure.*
 
 - [x] **Repo Cleanup**:
     - [x] Create root-level `src/`, `include/`, and `tests/` directories.
-    - [x] Merge `part2` code into the root as the main codebase (discard `part1`).
-    - [x] Remove `bin/`, `mnt/`, `obj/` from version control (update `.gitignore`).
+    - [x] Merge `part2` code into the root as the main codebase.
+    - [x] Remove `bin/`, `mnt/`, `obj/` from version control.
 - [x] **Dependency Management**:
-    - [x] (Optional) Introduce `vcpkg` or `conan` for managing dependencies (gRPC, Protobuf, spdlog), or rely on system installed libs but document clearly.
+    - [x] Use system installed libs but document clearly.
 
-## Phase 3: Modern C++ & Code Quality
+## Phase 3: Modern C++ & Concurrency
 *Objective: Demonstrate mastery of C++14/17 standards and remove legacy C-style patterns.*
 
-- [ ] **Logging Modernization**:
-    - [ ] Integrate `spdlog` library (header-only or compiled).
-    - [ ] Create a `Logger` wrapper class to replace the custom `dfs_log` macro.
-    - [ ] Replace `std::cout`/`printf` with structured logging (`spdlog::info`, `spdlog::error`).
-- [ ] **Concurrency Upgrade**:
-    - [ ] Replace `pthread_create` with `std::thread`.
-    - [ ] Replace `pthread_mutex_t` with `std::mutex` and `std::unique_lock`/`std::lock_guard`.
-    - [ ] Replace `pthread_cond_t` with `std::condition_variable`.
-- [ ] **Memory Management**:
-    - [ ] Audit code for `new`/`delete`.
-    - [ ] Replace raw pointers with `std::unique_ptr` (for exclusive ownership) or `std::shared_ptr`.
-- [ ] **Style Consistency**:
-    - [ ] Add `.clang-format` file (Google or LLVM style).
-    - [ ] Apply formatting to all source files.
+- [x] **Logging Modernization**:
+    - [x] Integrate `spdlog` library.
+    - [x] Create a `Logger` wrapper class.
+    - [x] Replace `std::cout`/`printf` with structured logging.
+- [x] **Concurrency Upgrade**:
+    - [x] Replace `pthread_create` with `std::thread`.
+    - [x] Replace `pthread_mutex_t` with `std::mutex` and `std::unique_lock`.
+    - [x] Replace `pthread_cond_t` with `std::condition_variable` (Fixed busy wait).
+    - [x] **TDD**: Added `test_concurrency.cpp` to verify Producer-Consumer pattern.
 
-## Phase 3: Core Logic Optimization (Preparation for Visualization)
-*Objective: Ensure the synchronization logic is robust enough for a smooth "Dropbox-like" demo.*
+---
 
-- [ ] **Reliability Check**:
-    - [ ] Stress test the `inotify` (Linux) or `FSEvents` (macOS) watcher loop.
-    - [ ] Ensure the "Last Write Wins" logic handles rapid file updates without crashing.
-- [ ] **Large File Handling (Optional but Recommended)**:
-    - [ ] Implement file chunking (e.g., 64MB chunks) to avoid loading entire files into RAM.
-    - [ ] Update Protobuf definitions to support streaming file transfer.
+## Phase 4: Architectural Refactoring (The "Great Decomposition")
+*Objective: Break the monolithic "God Classes" (`DFSServiceImpl`, `DFSClientNode`) into testable, single-responsibility components. This is the core "Scale" refactoring.*
 
-## Phase 4: Visualization Type 1 ("The Dropbox Experience")
-*Objective: Create an immediate visual hook for the README.*
+### 4.1 Code Style & Consistency (Prerequisite)
+*Why: Standardize formatting now to prevent massive diff noise during structural changes.*
+- [ ] **Setup**:
+    - [ ] Create `.clang-format` (Google Style).
+    - [ ] Apply formatting to all files.
 
-- [ ] **Scenario Scripting**:
-    - [ ] Design a simple demo script:
-        1. Start Server.
-        2. Start Client A (Folder A).
-        3. Start Client B (Folder B).
-        4. Drag image into Folder A -> Appears in Folder B.
-        5. Edit text file in Folder B -> Updates in Folder A.
-        6. (Bonus) Cut network (stop server), modify file, restore network, observe sync.
-- [ ] **Recording**:
-    - [ ] Set up split-screen view (Terminal + File Explorer windows).
-    - [ ] Record screen (OBS or QuickTime).
-- [ ] **Production**:
-    - [ ] Convert video to high-quality, optimized GIF.
-    - [ ] Add to `README.md` header.
-
-## Phase 5: Engineering Excellence
-*Objective: Show ability to work in modern DevOps environments.*
-
-- [ ] **Containerization**:
-    - [ ] Write `Dockerfile` for Server.
-    - [ ] Write `Dockerfile` for Client.
-    - [ ] Create `docker-compose.yml` to spin up a 1-Server / 2-Client environment with one command.
-- [ ] **Testing**:
-    - [ ] Integrate `GoogleTest` framework via CMake.
-    - [ ] Write Unit Tests for:
-        - [ ] File locking logic.
-        - [ ] CRC checksum calculation.
-        - [ ] Metadata serialization.
-
-## Phase 6: Advanced Observability (Visualization Type 4)
-*Objective: The "Killer Feature" - Distributed Tracing.*
-
+### 4.2 Storage Layer Abstraction
+*Why: Decouple File I/O from Business Logic to enable mocking.*
+- [ ] **TDD - Interface Definition**:
+    - [ ] Define `IStorageEngine` interface (Read, Write, Stat, Delete).
+    - [ ] Create `MockStorageEngine` using GMock.
+- [ ] **Implementation**:
+    - [ ] Implement `PosixStorageEngine` (moves actual I/O code from `DFSServiceImpl`).
+    - [ ] **Test**: Unit test `PosixStorageEngine` with temporary files.
 - [ ] **Integration**:
-    - [ ] Add `opentelemetry-cpp` dependency.
-    - [ ] Configure an OTLP exporter.
-- [ ] **Instrumentation**:
-    - [ ] Add Traces to `StoreFile`: Measure time for Lock -> Write -> Unlock.
-    - [ ] Add Traces to `FetchFile`: Measure time for Read -> Stream.
-    - [ ] Add Traces to Async Notification: Measure propagation latency.
-- [ ] **Infrastructure**:
-    - [ ] Add Jaeger (or Zipkin) to `docker-compose.yml`.
-- [ ] **Documentation**:
-    - [ ] Capture screenshots of a trace waterfall (showing network latency vs disk I/O).
-    - [ ] Add "Observability" section to `README.md` explaining how to debug the system using traces.
+    - [ ] Inject `IStorageEngine` into `DFSServiceImpl`.
+
+### 4.3 Lock Manager Extraction
+*Why: Centralize concurrency control, making it testable and replaceable (e.g., for distributed locks later).*
+- [ ] **TDD - Locking Logic**:
+    - [ ] Create `test_lock_manager.cpp`.
+    - [ ] Write tests for: Acquire, Release, Conflict detection, Timeout (if applicable).
+- [ ] **Implementation**:
+    - [ ] Extract `LockManager` class from `DFSServiceImpl`.
+    - [ ] Use `std::shared_mutex` (C++17) for Read/Write lock optimization if appropriate.
+- [ ] **Integration**:
+    - [ ] Replace raw mutex/map logic in `DFSServiceImpl` with `LockManager`.
+
+### 4.4 Server Service Decomposition
+*Why: The gRPC Service should only act as a "Controller", delegating logic to domain objects.*
+- [ ] **TDD - Service Logic**:
+    - [ ] Create `test_dfs_service.cpp` using `MockStorageEngine` and `MockLockManager`.
+    - [ ] Verify: Request flow -> Lock Acquire -> Storage Write -> Lock Release.
+- [ ] **Refactoring**:
+    - [ ] Strip `DFSServiceImpl` down to just gRPC mapping.
+    - [ ] Move core logic into a `DFSController` or domain classes.
+
+### 4.5 Client-Side Synchronization Engine
+*Why: The client logic (Watcher vs gRPC vs Local File) is currently a tangle of race conditions.*
+- [ ] **TDD - Sync Logic**:
+    - [ ] Define `ISyncStrategy` (e.g., `LastWriteWinsStrategy`).
+    - [ ] Write tests for conflict scenarios (Server newer, Client newer, Same).
+- [ ] **Implementation**:
+    - [ ] Extract `SyncEngine` from `DFSClientNode`.
+    - [ ] Decouple `InotifyWatcher` from the main loop (Event Bus pattern?).
+
+---
+
+## Phase 5: Memory Management & Safety
+*Objective: Ensure Zero-Leak policy and strict ownership semantics.*
+
+- [ ] **Smart Pointer Migration**:
+    - [ ] **TDD**: Verify destructor calls in Mocks during component tests.
+    - [ ] Replace `new`/`delete` with `std::unique_ptr` for `StorageEngine`, `LockManager`, etc.
+    - [ ] Use `std::shared_ptr` only where ownership is truly shared.
+- [ ] **Leak Detection**:
+    - [ ] Run full test suite under `valgrind` or `ASan` (AddressSanitizer) in CI/Docker.
+
+---
+
+## Phase 6: Advanced Logic & Optimization
+*Objective: Enhance reliability and performance.*
+
+- [ ] **Streaming & Chunking**:
+    - [ ] **TDD**: Test `StoreFile` with file size > RAM size.
+    - [ ] Refactor `StoreFile`/`FetchFile` to use streaming iterators instead of loading full buffers.
+- [ ] **Checksum Strategy**:
+    - [ ] Extract `CRC` logic into a `ChecksumService`.
+    - [ ] **Test**: Verify collisions/mismatches.
+
+---
+
+## Phase 7: Visualization & Observability
+*Objective: The "Resume Hooks".*
+
+- [ ] **Visualization**:
+    - [ ] Script a "Dropbox-like" sync scenario.
+    - [ ] Record GIF for README.
+- [ ] **Distributed Tracing (OpenTelemetry)**:
+    - [ ] Integrate `opentelemetry-cpp`.
+    - [ ] Instrument `LockManager` (wait times) and `StorageEngine` (IO times).
+    - [ ] Generate Trace Waterfall screenshots.

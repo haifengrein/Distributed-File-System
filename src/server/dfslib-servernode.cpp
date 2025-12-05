@@ -1,6 +1,7 @@
 #include <map>
 #include <mutex>
 #include <shared_mutex>
+#include <condition_variable>
 #include <chrono>
 #include <cstdio>
 #include <string>
@@ -88,6 +89,9 @@ private:
 
     /** Mutex for managing the queue requests **/
     std::mutex queue_mutex;
+
+    /** Condition Variable to wait for new requests **/
+    std::condition_variable queue_cv;
 
     /** The vector of queued tags used to manage asynchronous requests **/
     std::vector<QueueRequest<FileRequestType, FileListResponseType>> queued_tags;
@@ -195,8 +199,11 @@ public:
                          grpc::ServerCompletionQueue* cq,
                          void* tag) {
 
-        std::lock_guard<std::mutex> lock(queue_mutex);
-        this->queued_tags.emplace_back(context, request, response, cq, tag);
+        {
+            std::lock_guard<std::mutex> lock(queue_mutex);
+            this->queued_tags.emplace_back(context, request, response, cq, tag);
+        }
+        queue_cv.notify_one();
 
     }
 
@@ -258,8 +265,10 @@ public:
             // Guarded section for queue
             {
                 dfs_log(LL_DEBUG2) << "Waiting for queue guard";
-                std::lock_guard<std::mutex> lock(queue_mutex);
-
+                std::unique_lock<std::mutex> lock(queue_mutex);
+                
+                // Wait until there are queued tags (avoids busy loop)
+                queue_cv.wait(lock, [this] { return !this->queued_tags.empty(); });
 
                 for(QueueRequest<FileRequestType, FileListResponseType>& queue_request : this->queued_tags) {
                     this->RequestCallbackList(queue_request.context, queue_request.request,

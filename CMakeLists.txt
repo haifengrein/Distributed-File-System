@@ -14,6 +14,8 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 find_package(Protobuf REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GRPC REQUIRED grpc++ grpc)
+find_package(spdlog REQUIRED)
+find_package(GTest)
 find_package(Threads REQUIRED)
 
 # Find the gRPC C++ plugin
@@ -60,7 +62,7 @@ include_directories(${PROTO_SRC_DIR})
 add_library(dfs_common
     src/common/dfslib-shared.cpp
 )
-target_link_libraries(dfs_common PUBLIC dfs_proto)
+target_link_libraries(dfs_common PUBLIC dfs_proto spdlog::spdlog)
 
 # --- DFS Client ---
 add_executable(dfs-client
@@ -78,3 +80,13 @@ add_executable(dfs-server
 )
 target_link_libraries(dfs-server PRIVATE dfs_common dfs_proto ${GRPC_LIBRARIES} protobuf::libprotobuf Threads::Threads)
 target_compile_definitions(dfs-server PRIVATE DFS_MAIN)
+
+# --- Testing ---
+if(CMAKE_PROJECT_NAME STREQUAL "DFS_Project")
+    enable_testing()
+    if(GTEST_FOUND)
+        add_subdirectory(tests)
+    else()
+        message(WARNING "GoogleTest not found. Tests will not be built.")
+    endif()
+endif()

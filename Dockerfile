@@ -21,6 +21,8 @@ RUN apt-get update && apt-get install -y \
     libgrpc++-dev \
     protobuf-compiler-grpc \
     pkg-config \
+    libspdlog-dev \
+    libgtest-dev \
     clang-format \
     valgrind \
     && rm -rf /var/lib/apt/lists/*

@@ -50,7 +50,31 @@ After getting the code to compile, we wrote a verification script (`verify_env.s
 - **Action:** It starts the server in the background, waits 2 seconds, and runs the client `list` command.
 - **Result:** Confirmed that the Client-Server handshake (gRPC) works correctly in the new environment.
 
----
+# Key Takeaways: Phase 3 (Modern C++ & Code Quality)
 
-## Next Steps
-With the foundation solid, we are ready to proceed to **Phase 2: Structural Refactoring**, where we will dismantle the `part1/part2` directory structure and enforce standard C++ project layout (`src/`, `include/`).
+## 5. Logging Modernization: From Macros to spdlog
+
+### Challenge
+The project originally relied on a custom `dfs_log` macro that manually wrote to `std::cerr`. This approach was:
+- **Inflexible:** Difficult to route logs to files or other sinks.
+- **Non-Standard:** Lacked standard features like timestamping, thread IDs, and color coding.
+- **Hard to Maintain:** Required manual formatting of log messages.
+
+### Solution
+We integrated **spdlog**, a fast, header-only/compiled C++ logging library.
+- **Implementation:** We created a wrapper class around `spdlog` that mimics the existing `dfs_log` interface. This allowed us to modernize the underlying logging engine without rewriting thousands of lines of existing logging code.
+- **Key Feature:** We added a "Verification Mode" controlled by an environment variable (`DFS_VERIFY_LOGS`), allowing us to validate the logging system's behavior (levels, formatting) without recompiling the application.
+- **Outcome:** The project now features professional-grade, thread-safe logging with minimal code disruption.
+
+## 6. Concurrency Optimization: Fixing Busy Waits
+
+### Challenge
+The server's queue processing logic (`ProcessQueuedRequests`) was implemented as a `while(true)` busy-wait loop.
+- **Impact:** This consumed unnecessary CPU cycles, constantly locking and unlocking the mutex even when no requests were pending.
+- **Legacy Code:** Despite the documentation claiming usage of `pthread`, the codebase had already been partially migrated to `std::thread` and `std::mutex`, but lacked proper signaling mechanisms.
+
+### Solution
+We implemented a **Producer-Consumer pattern** using `std::condition_variable`.
+- **Producer (`RequestCallback`):** Notifies the condition variable (`queue_cv.notify_one()`) whenever a new request is added to the queue.
+- **Consumer (`ProcessQueuedRequests`):** Uses `queue_cv.wait(lock, predicate)` to sleep until the queue is non-empty.
+- **Outcome:** The server now sleeps efficiently when idle, significantly reducing CPU usage while maintaining high responsiveness.
