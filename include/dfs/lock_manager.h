@@ -5,12 +5,15 @@
 #include <mutex>
 #include <unordered_map>
 #include <optional>
+#include <memory>
+#include "dfs/event_bus.h"
 
 namespace dfs {
 
 class LockManager {
 public:
-    LockManager() = default;
+    // Optional EventBus. If null, no events are emitted.
+    explicit LockManager(std::shared_ptr<EventBus> event_bus = nullptr);
     ~LockManager() = default;
 
     /**
@@ -45,6 +48,7 @@ public:
 private:
     mutable std::mutex mtx;
     std::unordered_map<std::string, std::string> locks; // filename -> client_id
+    std::shared_ptr<EventBus> event_bus;
 };
 
 } // namespace dfs

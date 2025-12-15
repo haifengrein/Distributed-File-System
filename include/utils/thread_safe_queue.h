@@ -68,10 +68,8 @@ public:
             processor(item);
         }
 
-        // Remove finished items (assuming processor marks them, or we clear all?)
-        // The original code checked for `finished` flag.
-        // To make this generic, we'll assume we keep items until explicitly removed,
-        // OR we supply a cleanup predicate.
+        // Clear the queue after processing all items
+        queue.clear();
     }
 
     /**

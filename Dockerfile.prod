@@ -1,0 +1,58 @@
+# ==========================================
+# Stage 1: Builder (Compile C++ Binaries)
+# ==========================================
+FROM ubuntu:22.04 as builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Build Dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    protobuf-compiler \
+    libprotobuf-dev \
+    libgrpc++-dev \
+    protobuf-compiler-grpc \
+    pkg-config \
+    libspdlog-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy Source
+COPY CMakeLists.txt .
+COPY protos/ protos/
+COPY src/ src/
+COPY include/ include/
+
+# Build
+RUN mkdir -p build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release .. && \
+    make -j$(nproc)
+
+# ==========================================
+# Stage 2: Runtime (Minimal Image)
+# ==========================================
+FROM ubuntu:22.04-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Runtime Dependencies Only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgrpc++1 \
+    libprotobuf23 \
+    libspdlog1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy Binaries from Builder
+COPY --from=builder /app/build/bin/dfs-server /usr/local/bin/dfs-server
+COPY --from=builder /app/build/bin/dfs-client /usr/local/bin/dfs-client
+
+# Create Data Directory
+RUN mkdir -p /data
+
+# Default Command
+CMD ["dfs-server", "-a", "0.0.0.0:50051", "-m", "/data", "-n", "4"]

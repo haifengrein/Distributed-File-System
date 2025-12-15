@@ -62,9 +62,6 @@ int main(int argc, char** argv) {
     if (debug_level > 0 && debug_level <= 3) {
         DFS_LOG_LEVEL = static_cast<dfs_log_level_e>(debug_level + 1);
     }
-
-    // VERIFICATION LOGGING
-    // Controlled by environment variable for testing the logging system
     if (std::getenv("DFS_VERIFY_LOGS")) {
         dfs_log(LL_SYSINFO) << ">>> VERIFICATION MODE ACTIVE <<<";
         dfs_log(LL_SYSINFO) << "SPDLOG System Ready.";

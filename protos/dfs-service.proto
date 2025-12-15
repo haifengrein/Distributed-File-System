@@ -90,5 +90,34 @@ message WriteLockResponse {
     string message = 2;
 }
 
-// Add your message types here
+enum EventType {
+    UNKNOWN_EVENT = 0;
+    CLIENT_CONNECT = 1;
+    CLIENT_DISCONNECT = 2;
+    FILE_STORE_START = 3;
+    FILE_STORE_COMPLETE = 4;
+    FILE_FETCH = 5;
+    LOCK_ACQUIRED = 6;
+    LOCK_DENIED = 7;
+    LOCK_RELEASED = 8;
+    CONFLICT_DETECTED = 9;
+    ERROR_OCCURRED = 10;
+}
+
+message SystemEvent {
+    EventType type = 1;
+    int64 timestamp = 2; // Unix timestamp (ms)
+    string source_node = 3; // e.g., "client-1", "server"
+    string target_node = 4; // e.g., "server", "client-2"
+    string resource = 5; // e.g., filename
+    map<string, string> metadata = 6; // Extra details (size, speed, etc.)
+}
+
+message MonitorRequest {
+    bool include_past_events = 1;
+}
+
+service MonitorService {
+    rpc StreamEvents(MonitorRequest) returns (stream SystemEvent);
+}
 

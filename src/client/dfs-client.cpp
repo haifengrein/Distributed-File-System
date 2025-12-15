@@ -74,7 +74,7 @@ void DFSClient::Mount(const std::string &filepath) {
     dfs_log(LL_SYSINFO) << "Mounting on " << this->mount_path;
 
     std::vector<std::thread> threads;
-    //    uint event_flags = IN_CLOSE_WRITE | IN_OPEN;
+  
     uint event_flags = IN_CREATE | IN_MODIFY | IN_DELETE;
 
     const FileDescriptor fd = inotify_init();
@@ -95,7 +95,7 @@ void DFSClient::Mount(const std::string &filepath) {
     thread_async = std::thread(&DFSClientNodeP2::HandleCallbackList, &this->client_node);
     threads.push_back(std::move(thread_async));
 
-    // Initialize the callback list
+
     this->client_node.InitCallbackList();
 
     for (std::thread &t : threads) {
@@ -141,13 +141,13 @@ void DFSClient::InotifyWatcher(InotifyCallback callback, uint event_type, FileDe
     char *events_buffer = handle.get();
 
     while (true) {
-        // Read the next inotify event as it becomes available
+
         len = read(fd, events_buffer, DFS_I_BUFFER_SIZE);
 
         int index = 0;
 
         node->InotifyWatcherCallback([&] {
-            // This loop handles each of the inotify events as they come through
+
             while (index < len) {
                 inotify_event *event = reinterpret_cast<inotify_event *>(&(events_buffer[index]));
 
@@ -171,8 +171,7 @@ void DFSClient::InotifyWatcher(InotifyCallback callback, uint event_type, FileDe
 }
 
 void DFSClient::InotifyEventCallback(uint event_type, const std::string &filename, void *data) {
-    // For the purposes of this assignment we will ignore files that do not
-    // match the following set of extensions (e.g. temporary files)
+
     try {
         if (!std::regex_match(filename, std::regex(".*\\.(jpg|png|gif|txt|xlsx|docx|md|psd)$"))) {
             dfs_log(LL_ERROR) << "Ignored file type used for " << filename;
@@ -183,28 +182,24 @@ void DFSClient::InotifyEventCallback(uint event_type, const std::string &filenam
         return;
     }
 
-    // Get the basename for the file
+
     std::string basename = filename.substr(filename.find_last_of("/") + 1);
 
     auto event_data = reinterpret_cast<EventStruct *>(data);
     inotify_event *event = reinterpret_cast<inotify_event *>(event_data->event);
     DFSClientNode *node = reinterpret_cast<DFSClientNode *>(event_data->instance);
 
-    // Handle a new file that was created by storing
-    // this file on the server
+
     if (event->mask & IN_CREATE) {
         dfs_log(LL_DEBUG2) << "inotify IN_CREATE event occurred";
         node->Store(basename);
     }
 
-    // Handle a new file that was modified by storing
-    // this file on the server
     if (event->mask & IN_MODIFY) {
         dfs_log(LL_DEBUG2) << "inotify IN_MODIFY event occurred";
         node->Store(basename);
     }
 
-    // Handle a deleted file
     if (event->mask & IN_DELETE) {
         dfs_log(LL_DEBUG2) << "inotify IN_DELETE event occurred";
         node->Delete(basename);

@@ -1,37 +1,83 @@
 
 # Distributed File System (DFS)
 
-This project implements a distributed file system (DFS) based on gRPC and Protocol Buffers. The system demonstrates comprehensive skills in distributed systems design, network programming, concurrency, and C++ development.
+A C++17 distributed file system built on gRPC/Protocol Buffers. The focus is on correctness under concurrency (locks, callbacks, file watchers) and on making the system easy to run locally via Docker and scripts.
 
-## Key Features and Technical Highlights
+## What’s implemented
 
-![gRPC](untitled.png)
+- **Core file ops**: `mount`, `fetch`, `store`, `delete`, `list`, `stat` via gRPC/Protobuf.
+- **Client-side cache + change detection**: CRC-based detection and “last write wins” conflict strategy.
+- **Server-side write lock**: single-writer semantics to avoid concurrent write corruption.
+- **Async callbacks**: server-to-client notifications (gRPC async) to keep caches in sync.
+- **Multi-threaded runtime**: gRPC async threads + client watcher threads (`inotify`).
+- **Observability hooks (optional)**: an event-driven layer (`EventBus`) and a monitor service for streaming runtime events.
 
+## Architecture (high level)
 
-- **Core DFS Operations**: Implementing fetch, store, list, get attributes, and delete operations using gRPC and Protocol Buffers.
-- **Client-side Caching**: Entire files are cached client-side to improve performance.
-- **Write Lock Mechanism**: Ensures only one client can write to a file at a time, managing concurrent modifications.
-- **Asynchronous Notifications**: Utilizes gRPC async calls to propagate file updates efficiently.
-- **File Change Detection**: Uses CRC checksums and a "last write wins" strategy for conflict resolution.
-- **Multi-threaded Design**: Handles concurrent operations and file system events.
-- **Concurrency**: Multi-threaded programming using POSIX threads (pthread) API with synchronization via mutexes and condition variables.
-- **Error Handling**: Implements server timeouts and manages various error conditions gracefully.
+- **Client (`dfs-client`)** mounts a local directory, watches for file changes, and turns changes into RPCs.
+- **Server (`dfs-server`)** stores files under a mount directory, enforces write locks, and pushes callback events.
+- **Shared logic** lives in `src/common/` and `include/`.
 
-## System Architecture
+## Run with Docker (recommended)
 
-- **Client Component**: Manages user requests, local cache, and monitors local file changes.
-- **Server Component**: Responds to client requests, maintains file storage, manages file locks, broadcasts file changes.
-- **Asynchronous Notification System**: Allows the server to actively notify clients of file changes.
-- **Cache Consistency Protocol**: Ensures eventual consistency between client caches and server data.
+This repo includes a compose setup that brings up the full dev stack: DFS server + demo agent + gateway + dashboard.
 
+1) Build the C++ binaries once (inside the dev container image):
 
-## Key Learnings
+```bash
+docker compose run --rm dev bash -lc "cmake -S . -B build && cmake --build build -j"
+```
 
-- Deep understanding of distributed systems design principles and trade-offs.
-- Practical application of the CAP theorem, balancing consistency, availability, and partition tolerance.
-- Mastery of modern RPC frameworks (gRPC) and serialization formats (Protocol Buffers).
-- Enhanced system programming skills in Linux environments.
-- Improved multi-threading and concurrent programming abilities.
-- Learning techniques for maintaining distributed cache consistency.
+2) Start the stack:
 
-This project showcases my ability to design and implement complex distributed systems, combining aspects of systems programming, network programming, and concurrent programming.
+```bash
+docker compose up --build
+```
+
+- Dashboard: `http://localhost:5173`
+- Gateway: `http://localhost:8000`
+- gRPC server: `localhost:50051`
+
+Production-style compose (optional):
+
+```bash
+docker compose -f docker-compose.prod.yml up --build
+```
+
+## Build (local)
+
+Dependencies: CMake (>= 3.15), a C++17 compiler, gRPC, Protobuf, `spdlog`, pthreads. Tests are built when GTest is available.
+
+```bash
+cmake -S . -B build
+cmake --build build -j
+```
+
+## Run (local)
+
+The DFS uses mount directories under `mnt/` by default. These are runtime data directories and are intentionally not meant to be versioned.
+
+```bash
+mkdir -p mnt/server mnt/client
+./build/bin/dfs-server -a 0.0.0.0:50051 -m mnt/server -n 4
+```
+
+In another terminal:
+
+```bash
+./build/bin/dfs-client -a 127.0.0.1:50051 -m mnt/client mount
+```
+
+For CLI help:
+
+```bash
+./build/bin/dfs-server -h
+./build/bin/dfs-client -h
+```
+
+## Repository layout
+
+- `src/`, `include/`: DFS core implementation (client/server/common).
+- `protos/`: gRPC service definition.
+- `tests/`: unit/integration tests and demos.
+- `gateway/`, `dashboard/`: optional observability/demo UI stack.

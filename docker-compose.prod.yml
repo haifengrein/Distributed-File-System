@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # Production DFS Server Node
+  dfs-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    image: dfs-node:latest
+    container_name: dfs-prod-server
+    restart: always
+    ports:
+      - "50051:50051"
+    volumes:
+      - dfs_data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  # Production Gateway
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    image: dfs-gateway:latest
+    container_name: dfs-prod-gateway
+    restart: always
+    environment:
+      - DFS_SERVER_ADDRESS=dfs-server:50051
+      # In production, we disable the Demo Agent features or point to a dedicated agent container
+      # For simplicity, we point to localhost (which will fail gracefully) or a dummy service
+      - DEMO_AGENT_URL=http://localhost:5000 
+    ports:
+      - "8000:8000"
+    depends_on:
+      - dfs-server
+
+  # Production Dashboard (Nginx)
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile.prod
+    image: dfs-dashboard:latest
+    container_name: dfs-prod-dashboard
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - gateway
+
+volumes:
+  dfs_data:

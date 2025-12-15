@@ -114,6 +114,9 @@ protected:
     /** The grpc service object **/
     grpc::Service* service;
 
+    /** Additional services to register **/
+    std::vector<grpc::Service*> extra_services;
+
     /** The server instance **/
     std::shared_ptr<grpc::Server> server;
 
@@ -130,6 +133,8 @@ public:
     DFSServiceRunner() {}
 
     void SetService(grpc::Service* service) { this->service = service; }
+
+    void RegisterService(grpc::Service* service) { this->extra_services.push_back(service); }
 
     void SetQueuedRequestsCallback(std::function<void()> queued_requests_callback) {
         this->queued_requests_callback = queued_requests_callback;
@@ -148,6 +153,12 @@ public:
         grpc::ServerBuilder builder;
         builder.AddListeningPort(this->server_address, grpc::InsecureServerCredentials());
         builder.RegisterService(this->service);
+        
+        // Register extra services (like MonitorService)
+        for(auto* s : extra_services) {
+            builder.RegisterService(s);
+        }
+
         this->completion_queue = builder.AddCompletionQueue();
         this->server = builder.BuildAndStart();
         dfs_log(LL_SYSINFO) << "DFSServerNode server listening on " << this->server_address;

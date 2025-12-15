@@ -64,6 +64,7 @@ add_library(dfs_common
     src/common/storage/posix_storage_engine.cpp
     src/common/lock_manager.cpp
     src/common/sync_engine.cpp
+    src/common/event_bus.cpp
 )
 target_link_libraries(dfs_common PUBLIC dfs_proto spdlog::spdlog)
 
@@ -80,6 +81,7 @@ target_compile_definitions(dfs-client PRIVATE DFS_MAIN)
 add_executable(dfs-server
     src/server/dfs-server.cpp
     src/server/dfslib-servernode.cpp
+    src/server/monitor_service.cpp
 )
 target_link_libraries(dfs-server PRIVATE dfs_common dfs_proto ${GRPC_LIBRARIES} protobuf::libprotobuf Threads::Threads)
 target_compile_definitions(dfs-server PRIVATE DFS_MAIN)

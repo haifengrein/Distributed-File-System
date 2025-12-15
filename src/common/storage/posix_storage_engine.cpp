@@ -46,22 +46,17 @@ std::string PosixStorageEngine::Read(const std::string& path, size_t offset, siz
 
     ifs.seekg(offset);
     if (ifs.fail()) {
-         // If we seek past end, we just return empty
          return "";
     }
 
     std::vector<char> buffer(count);
     ifs.read(buffer.data(), count);
-    
-    // We return however many bytes we actually read
     std::streamsize bytes_read = ifs.gcount();
     return std::string(buffer.data(), bytes_read);
 }
 
 void PosixStorageEngine::Delete(const std::string& path) {
     if (remove(path.c_str()) != 0) {
-        // Check if it failed because it didn't exist? 
-        // For idempotency, maybe ignore ENOENT?
         if (errno != ENOENT) {
             throw std::runtime_error("Failed to delete file: " + path + " (" + std::strerror(errno) + ")");
         }
@@ -79,8 +74,6 @@ struct stat PosixStorageEngine::Stat(const std::string& path) {
 void PosixStorageEngine::UpdateMTime(const std::string& path, time_t mtime) {
     struct utimbuf new_times;
     
-    // We want to preserve access time if possible, but utimbuf sets both.
-    // To do this correctly, we should Stat() first to get atime.
     struct stat current = Stat(path);
     
     new_times.actime = current.st_atime;
@@ -100,7 +93,6 @@ std::vector<std::string> PosixStorageEngine::List(const std::string& dir_path) {
 
     struct dirent* entry;
     while ((entry = readdir(dir)) != nullptr) {
-        // Skip . and ..
         if (std::strcmp(entry->d_name, ".") == 0 || std::strcmp(entry->d_name, "..") == 0) {
             continue;
         }
@@ -110,5 +102,5 @@ std::vector<std::string> PosixStorageEngine::List(const std::string& dir_path) {
     return files;
 }
 
-} // namespace storage
-} // namespace dfs
+} 
+} 

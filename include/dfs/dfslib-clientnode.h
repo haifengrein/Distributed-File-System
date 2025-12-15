@@ -15,14 +15,6 @@
 
 class DFSClientNodeP2 : public DFSClientNode {
 public:
-    //
-    // STUDENT INSTRUCTION:
-    //
-    // This class derives from the parent DFSClientNode so
-    // that you can focus on the functions that you need to complete.
-    //
-    // You may add any additional declarations of methods or variables that you need here.
-    //
 
     /**
      * Constructor for the DFSClientNode class
@@ -133,12 +125,6 @@ public:
      *
      */
     void InotifyWatcherCallback(std::function<void()> callback) override;
-
-    //
-    // STUDENT INSTRUCTION:
-    //
-    // You may add any additional declarations of methods or variables that you need here.
-    //
     std::mutex async_mutex;
 };
 #endif

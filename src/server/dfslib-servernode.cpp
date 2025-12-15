@@ -23,6 +23,8 @@
 #include "dfs/storage/storage_engine_if.h"
 #include "dfs/storage/posix_storage_engine.h"
 #include "dfs/lock_manager.h"
+#include "dfs/event_bus.h"
+#include "dfs/monitor_service.h"
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -39,13 +41,6 @@ using namespace std;
 using google::protobuf::Timestamp;
 using google::protobuf::util::TimeUtil;
 
-//
-// STUDENT INSTRUCTION:
-//
-// Change these "using" aliases to the specific
-// message types you are using in your `dfs-service.proto` file
-// to indicate a file request and a listing of files from the server
-//
 using FileRequestType = FileListRequest;
 using FileListResponseType = FileList;
 
@@ -54,46 +49,50 @@ extern dfs_log_level_e DFS_LOG_LEVEL;
 class DFSServiceImpl final : public DFSService::WithAsyncMethod_CallbackList<DFSService::Service>,
                              public DFSCallDataManager<FileRequestType, FileListResponseType> {
 private:
-    /** The runner service used to start the service and manage asynchronicity **/
+   
     DFSServiceRunner<FileRequestType, FileListResponseType> runner;
 
-    /** The mount path for the server **/
     std::string mount_path;
 
-    /** Storage Engine **/
     std::shared_ptr<dfs::storage::IStorageEngine> storage_engine;
 
-    /** Lock Manager **/
     std::shared_ptr<dfs::LockManager> lock_manager;
 
-    /** Mutex for managing the queue requests **/
+    std::shared_ptr<dfs::EventBus> event_bus;
+
     std::mutex queue_mutex;
 
-    /** Condition Variable to wait for new requests **/
     std::condition_variable queue_cv;
 
-    /** The vector of queued tags used to manage asynchronous requests **/
     std::vector<QueueRequest<FileRequestType, FileListResponseType>> queued_tags;
 
-    /**
-     * Prepend the mount path to the filename.
-     *
-     * @param filepath
-     * @return
-     */
     const std::string WrapPath(const std::string& filepath) { return this->mount_path + filepath; }
 
-    /** CRC Table kept in memory for faster calculations **/
+
     CRC::Table<std::uint32_t, 32> crc_table;
+
+    void PublishEvent(dfs_service::EventType type, const std::string& resource, const std::string& source, const std::string& target = "server") {
+        if (!event_bus) return;
+        dfs_service::SystemEvent event;
+        event.set_type(type);
+        event.set_timestamp(std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count());
+        event.set_resource(resource);
+        event.set_source_node(source);
+        event.set_target_node(target);
+        event_bus->Publish(event);
+    }
 
 public:
     DFSServiceImpl(const std::string& mount_path, const std::string& server_address, int num_async_threads,
                    std::shared_ptr<dfs::storage::IStorageEngine> storage_engine,
-                   std::shared_ptr<dfs::LockManager> lock_manager)
+                   std::shared_ptr<dfs::LockManager> lock_manager,
+                   std::shared_ptr<dfs::EventBus> event_bus)
         : mount_path(mount_path), 
           crc_table(CRC::CRC_32()), 
           storage_engine(storage_engine),
-          lock_manager(lock_manager) {
+          lock_manager(lock_manager),
+          event_bus(event_bus) {
         this->runner.SetService(this);
         this->runner.SetAddress(server_address);
         this->runner.SetNumThreads(num_async_threads);
@@ -102,11 +101,11 @@ public:
 
     ~DFSServiceImpl() { this->runner.Shutdown(); }
 
+    void RegisterService(grpc::Service* service) { this->runner.RegisterService(service); }
+
     void Run() { this->runner.Run(); }
 
-    /**
-     * Request callback for asynchronous requests
-     */
+
     void RequestCallback(grpc::ServerContext* context, FileRequestType* request,
                          grpc::ServerAsyncResponseWriter<FileListResponseType>* response,
                          grpc::ServerCompletionQueue* cq, void* tag) {
@@ -117,9 +116,6 @@ public:
         queue_cv.notify_one();
     }
 
-    /**
-     * Process a callback request
-     */
     void ProcessCallback(ServerContext* context, FileRequestType* request, FileListResponseType* response) {
         dfs_log(LL_SYSINFO) << "Enter ProcessCallback";
 
@@ -133,17 +129,14 @@ public:
         }
     }
 
-    /**
-     * Processes the queued requests in the queue thread
-     */
+
     void ProcessQueuedRequests() {
         while (true) {
-            // Guarded section for queue
+
             {
                 dfs_log(LL_DEBUG2) << "Waiting for queue guard";
                 std::unique_lock<std::mutex> lock(queue_mutex);
 
-                // Wait until there are queued tags (avoids busy loop)
                 queue_cv.wait(lock, [this] { return !this->queued_tags.empty(); });
 
                 for (QueueRequest<FileRequestType, FileListResponseType>& queue_request : this->queued_tags) {
@@ -152,7 +145,6 @@ public:
                     queue_request.finished = true;
                 }
 
-                // any finished tags first
                 this->queued_tags.erase(
                     std::remove_if(this->queued_tags.begin(), this->queued_tags.end(),
                                    [](QueueRequest<FileRequestType, FileListResponseType>& queue_request) {
@@ -192,6 +184,7 @@ public:
         StoreRequest request;
         string filename, filepath;
         int client_file_mtime;
+        string client_id;
 
         bool isFirstChunk = true;
         uint32_t client_crc = 0;
@@ -204,15 +197,16 @@ public:
                     filename = request.file_name();
                     client_crc = request.crc();
                     client_file_mtime = request.mtime();
+                    client_id = request.client_id();
                     filepath = WrapPath(filename);
+                    
+                    PublishEvent(dfs_service::FILE_STORE_START, filename, client_id);
                     dfs_log(LL_DEBUG2) << "[StoreFile] FirstChunk received for file: " << filename;
 
-                    // Check if content is identical
                     uint32_t server_crc = 0;
                     try {
                         server_crc = dfs_file_checksum(filepath, &crc_table);
                     } catch (...) {
-                         // Assume file doesn't exist or error, so crc is 0 or we proceed
                     }
                     
                     if (server_crc == client_crc && server_crc != 0) {
@@ -223,24 +217,26 @@ public:
                             dfs_log(LL_ERROR) << "[StoreFile] Failed to update mtime: " << e.what();
                         }
                         lock_manager->Release(filename);
+                        PublishEvent(dfs_service::FILE_STORE_COMPLETE, filename, client_id);
                         return Status(StatusCode::ALREADY_EXISTS, "File on server is identical to client's version.");
                     }
 
                     try {
-                        storage_engine->Write(filepath, request.chunk(), false); // Overwrite first chunk
+                        storage_engine->Write(filepath, request.chunk(), false); 
                     } catch (const std::exception& e) {
                         lock_manager->Release(filename);
+                        PublishEvent(dfs_service::ERROR_OCCURRED, filename, client_id);
                         dfs_log(LL_ERROR) << "[StoreFile] Failed to write first chunk: " << e.what();
                         return Status(grpc::INTERNAL, "Failed to write data.");
                     }
                     
                     isFirstChunk = false;
                 } else {
-                     // Subsequent chunks
                     try {
-                        storage_engine->Write(filepath, request.chunk(), true); // Append
+                        storage_engine->Write(filepath, request.chunk(), true); 
                     } catch (const std::exception& e) {
                         lock_manager->Release(filename);
+                        PublishEvent(dfs_service::ERROR_OCCURRED, filename, client_id);
                         dfs_log(LL_ERROR) << "[StoreFile] Failed to write chunk: " << e.what();
                         return Status(grpc::INTERNAL, "Failed to write data.");
                     }
@@ -264,6 +260,7 @@ public:
         response->set_file_name(filename);
 
         lock_manager->Release(filename);
+        PublishEvent(dfs_service::FILE_STORE_COMPLETE, filename, client_id);
 
         return Status::OK;
     }
@@ -271,10 +268,12 @@ public:
     Status FetchFile(ServerContext* context, const FetchRequest* request,
                      ServerWriter<FetchResponse>* writer) override {
         string filename = request->file_name();
+        string client_id = request->client_id();
         string filepath = WrapPath(filename);
-        uint32_t client_crc = request->crc();  // CRC provided by client
+        uint32_t client_crc = request->crc();  
 
         dfs_log(LL_SYSINFO) << "[FetchFile] Attempting to fetch file: " << filepath;
+        PublishEvent(dfs_service::FILE_FETCH, filename, client_id);
 
         if (!storage_engine->Exists(filepath)) {
             dfs_log(LL_ERROR) << "[FetchFile] File not found: " << filepath;
@@ -417,45 +416,30 @@ public:
     }
 };
 
-//
-// STUDENT INSTRUCTION:
-//
-// The following three methods are part of the basic DFSServerNode
-// structure.
-//
-/**
- * The main server node constructor
- *
- * @param mount_path
- */
 DFSServerNode::DFSServerNode(const std::string& server_address, const std::string& mount_path, int num_async_threads,
                              std::function<void()> callback)
     : server_address(server_address),
       mount_path(mount_path),
       num_async_threads(num_async_threads),
       grader_callback(callback) {}
-/**
- * Server shutdown
- */
+
 DFSServerNode::~DFSServerNode() noexcept { dfs_log(LL_SYSINFO) << "DFSServerNode shutting down"; }
 
-/**
- * Start the DFSServerNode server
- */
 void DFSServerNode::Start() {
-    // Inject Dependencies
+
     auto storage_engine = std::make_shared<dfs::storage::PosixStorageEngine>();
-    auto lock_manager = std::make_shared<dfs::LockManager>();
+    
+    auto event_bus = std::make_shared<dfs::EventBus>();
+    
+    auto lock_manager = std::make_shared<dfs::LockManager>(event_bus);
+
+    dfs::MonitorServiceImpl monitor_service(event_bus);
     
     DFSServiceImpl service(this->mount_path, this->server_address, this->num_async_threads, 
-                           storage_engine, lock_manager);
+                           storage_engine, lock_manager, event_bus);
+
+    service.RegisterService(&monitor_service);
 
     dfs_log(LL_SYSINFO) << "DFSServerNode server listening on " << this->server_address;
     service.Run();
 }
-
-//
-// STUDENT INSTRUCTION:
-//
-// Add your additional definitions here
-//

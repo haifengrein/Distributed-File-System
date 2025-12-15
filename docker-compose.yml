@@ -1,14 +1,74 @@
 version: '3.8'
 
 services:
+  # Main Development Container (Acts as Server Node + Agent Host)
   dev:
     build: .
     image: dfs-dev-env
     container_name: dfs-dev
+    hostname: dfs-server-node
     volumes:
       - .:/app
     working_dir: /app
-    # Keep the container running
-    command: tail -f /dev/null
-    # Improve IO performance on macOS/Windows
+    # Updated to use the startup script
+    command: ./scripts/start_dev_node.sh
     platform: linux/amd64
+    ports:
+      - "50051:50051"
+      - "5000:5000" # Expose Agent for debugging if needed
+
+  # Logical Client A (For manual shell demos if needed)
+  client-a:
+    image: dfs-dev-env
+    container_name: dfs-client-a
+    hostname: client-a-node
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: tail -f /dev/null
+    platform: linux/amd64
+    depends_on:
+      - dev
+
+  # Logical Client B
+  client-b:
+    image: dfs-dev-env
+    container_name: dfs-client-b
+    hostname: client-b-node
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: tail -f /dev/null
+    platform: linux/amd64
+    depends_on:
+      - dev
+
+  # Gateway
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    image: dfs-gateway
+    container_name: dfs-gateway
+    depends_on:
+      - dev
+    environment:
+      - DFS_SERVER_ADDRESS=dfs-dev:50051
+    ports:
+      - "8000:8000"
+    platform: linux/amd64
+
+  # Dashboard
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    image: dfs-dashboard
+    container_name: dfs-dashboard
+    volumes:
+      - ./dashboard:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - gateway

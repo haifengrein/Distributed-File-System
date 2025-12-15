@@ -31,12 +31,17 @@ using grpc::StatusCode;
 extern dfs_log_level_e DFS_LOG_LEVEL;
 
 DFSClientNode::DFSClientNode() : mount_path("mnt/client/"), unmounting(false), crc_table(CRC::CRC_32()) {
-    char host[HOST_NAME_MAX];
-    std::ostringstream ss_id;
-    gethostname(host, HOST_NAME_MAX);
-    auto t_id = std::this_thread::get_id();
-    ss_id << "T" << t_id;
-    client_id = std::string(host + ss_id.str());
+    const char* env_id = std::getenv("DFS_CLIENT_ID");
+    if (env_id) {
+        client_id = std::string(env_id);
+    } else {
+        char host[HOST_NAME_MAX];
+        std::ostringstream ss_id;
+        gethostname(host, HOST_NAME_MAX);
+        auto t_id = std::this_thread::get_id();
+        ss_id << "T" << t_id;
+        client_id = std::string(host + ss_id.str());
+    }
 }
 
 DFSClientNode::~DFSClientNode() noexcept {}

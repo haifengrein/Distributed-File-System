@@ -44,20 +44,14 @@ using std::chrono::milliseconds;
 using std::chrono::system_clock;
 extern dfs_log_level_e DFS_LOG_LEVEL;
 
-//
-// STUDENT INSTRUCTION:
-//
-// Change these "using" aliases to the specific
-// message types you are using to indicate
-// a file request and a listing of files from the server.
-//
+
 using FileRequestType = FileListRequest;
 using FileListResponseType = FileList;
 
 DFSClientNodeP2::DFSClientNodeP2() : DFSClientNode() {}
 DFSClientNodeP2::~DFSClientNodeP2() {}
 
-// Helper to get local metadata
+
 dfs::FileMetadata GetLocalMetadata(const std::string& filepath, const std::string& filename, CRC::Table<std::uint32_t, 32>& table) {
     struct stat fs;
     if (stat(filepath.c_str(), &fs) != 0) {
@@ -110,17 +104,16 @@ grpc::StatusCode DFSClientNodeP2::Store(const std::string &filename) {
         return StatusCode::NOT_FOUND;
     }
 
-    // Request a write lock before proceeding
+
     StatusCode lock_status = RequestWriteAccess(filename);
     if (lock_status != StatusCode::OK) {
         dfs_log(LL_DEBUG2) << "[Store]: Can't get write lock";
         return lock_status;
     }
 
-    // Check local file's CRC
+  
     uint32_t client_crc = dfs_file_checksum(file_path, &crc_table);
 
-    // Open the file for reading
     ifstream ifs(file_path, ios::binary);
     if (!ifs.is_open()) {
         dfs_log(LL_ERROR) << "[Store] Unable to open file: " << file_path;
@@ -141,7 +134,7 @@ grpc::StatusCode DFSClientNodeP2::Store(const std::string &filename) {
             if (isFirstChunk) {
                 request.set_file_name(filename);
                 request.set_client_id(this->client_id);
-                request.set_crc(client_crc);  // Set the CRC value
+                request.set_crc(client_crc);  
                 request.set_mtime(fs.st_mtime);
                 isFirstChunk = false;
             }
@@ -177,27 +170,7 @@ grpc::StatusCode DFSClientNodeP2::Store(const std::string &filename) {
 }
 
 grpc::StatusCode DFSClientNodeP2::Fetch(const std::string &filename) {
-    //
-    // STUDENT INSTRUCTION:
-    //
-    // Add your request to fetch a file here. Refer to the Part 1
-    // student instruction for details on the basics.
-    //
-    // You can start with your Part 1 implementation. However, you will
-    // need to adjust this method to recognize when a file trying to be
-    // fetched is the same on the client (i.e. the files do not differ
-    // between the client and server and a fetch would be unnecessary.
-    //
-    // The StatusCode response should be:
-    //
-    // OK - if all went well
-    // DEADLINE_EXCEEDED - if the deadline timeout occurs
-    // NOT_FOUND - if the file cannot be found on the server
-    // ALREADY_EXISTS - if the local cached file has not changed from the server version
-    // CANCELLED otherwise
-    //
-    // Hint: You may want to match the mtime on local files to the server's mtime
-    //
+
     ClientContext context;
     FetchRequest request;
     FetchResponse response;
@@ -251,23 +224,10 @@ grpc::StatusCode DFSClientNodeP2::Fetch(const std::string &filename) {
     ofstream ofs;
     ofs.open(file_path);
 
-    // if (!ofs.is_open()) {
-    //     dfs_log(LL_ERROR) << "[Fetch] Failed to open file: " << filename;
-    //     return StatusCode::NOT_FOUND;
-    // }
 
     try {
         while (reader->Read(&response)) {
-            // if (response.crc() == client_crc) {
-            //     dfs_log(LL_SYSINFO) << "[Fetch] No changes in file: " << filename;
-            //     return StatusCode::ALREADY_EXISTS;
-            // }
 
-            // ofs.write(response.chunk().data(), response.chunk().size());
-            // if (ofs.fail()) {
-            //     dfs_log(LL_ERROR) << "[Fetch] Failed to write data to file: " << filename;
-            //     return StatusCode::INTERNAL;
-            // }
             const string &chunk = response.chunk();
             ofs << chunk;
         }
@@ -295,25 +255,7 @@ grpc::StatusCode DFSClientNodeP2::Fetch(const std::string &filename) {
 }
 
 grpc::StatusCode DFSClientNodeP2::Delete(const std::string &filename) {
-    //
-    // STUDENT INSTRUCTION:
-    //
-    // Add your request to delete a file here. Refer to the Part 1
-    // student instruction for details on the basics.
-    //
-    // You will also need to add a request for a write lock before attempting to delete.
-    //
-    // If the write lock request fails, you should return a status of RESOURCE_EXHAUSTED
-    // and cancel the current operation.
-    //
-    // The StatusCode response should be:
-    //
-    // StatusCode::OK - if all went well
-    // StatusCode::DEADLINE_EXCEEDED - if the deadline timeout occurs
-    // StatusCode::RESOURCE_EXHAUSTED - if a write lock cannot be obtained
-    // StatusCode::CANCELLED otherwise
-    //
-    //
+
     ClientContext context;
     DeleteRequest request;
     DeleteResponse response;
@@ -353,22 +295,7 @@ grpc::StatusCode DFSClientNodeP2::Delete(const std::string &filename) {
 }
 
 grpc::StatusCode DFSClientNodeP2::List(std::map<std::string, int> *file_map, bool display) {
-    //
-    // STUDENT INSTRUCTION:
-    //
-    // Add your request to list files here. Refer to the Part 1
-    // student instruction for details on the basics.
-    //
-    // You can start with your Part 1 implementation and add any additional
-    // listing details that would be useful to your solution to the list response.
-    //
-    // The StatusCode response should be:
-    //
-    // StatusCode::OK - if all went well
-    // StatusCode::DEADLINE_EXCEEDED - if the deadline timeout occurs
-    // StatusCode::CANCELLED otherwise
-    //
-    //
+
     file_map->clear();
 
     ClientContext context;
@@ -399,23 +326,7 @@ grpc::StatusCode DFSClientNodeP2::List(std::map<std::string, int> *file_map, boo
 }
 
 grpc::StatusCode DFSClientNodeP2::Stat(const std::string &filename, void *file_status) {
-    //
-    // STUDENT INSTRUCTION:
-    //
-    // Add your request to get the status of a file here. Refer to the Part 1
-    // student instruction for details on the basics.
-    //
-    // You can start with your Part 1 implementation and add any additional
-    // status details that would be useful to your solution.
-    //
-    // The StatusCode response should be:
-    //
-    // StatusCode::OK - if all went well
-    // StatusCode::DEADLINE_EXCEEDED - if the deadline timeout occurs
-    // StatusCode::NOT_FOUND - if the file cannot be found on the server
-    // StatusCode::CANCELLED otherwise
-    //
-    //
+
     ClientContext context;
     StatusRequest request;
     FileInfo response;
@@ -444,50 +355,13 @@ grpc::StatusCode DFSClientNodeP2::Stat(const std::string &filename, void *file_s
 }
 
 void DFSClientNodeP2::InotifyWatcherCallback(std::function<void()> callback) {
-    //
-    // STUDENT INSTRUCTION:
-    //
-    // This method gets called each time inotify signals a change
-    // to a file on the file system. That is every time a file is
-    // modified or created.
-    //
-    // You may want to consider how this section will affect
-    // concurrent actions between the inotify watcher and the
-    // asynchronous callbacks associated with the server.
-    //
-    // The callback method shown must be called here, but you may surround it with
-    // whatever structures you feel are necessary to ensure proper coordination
-    // between the async and watcher threads.
-    //
-    // Hint: how can you prevent race conditions between this thread and
-    // the async thread when a file event has been signaled?
-    //
+
 
     lock_guard<mutex> lock(async_mutex);
     
-    // NOTE: We cannot determine which file changed easily here because 
-    // InotifyWatcherCallback logic is generic. 
-    // To use SyncEngine properly for client events, we'd need the changed filename.
-    // The current architecture relies on "callback()" which likely scans or does something?
-    // Actually, looking at `dfslibx-clientnode.cpp` (base class) might reveal how this works.
-    // Assuming callback() triggers a check.
-    
-    // If we can't change the signature, we just call the callback.
-    // BUT, if the callback triggers Store(), we should apply logic there?
-    // Store() calls RequestWriteLock...
-    
-    // Let's focus on HandleCallbackList first as it has the data.
     callback();
 }
 
-//
-// STUDENT INSTRUCTION:
-//
-// This method handles the gRPC asynchronous callbacks from the server.
-// We've provided the base structure for you, but you should review
-// the hints provided in the STUDENT INSTRUCTION sections below
-// in order to complete this method.
-//
 
 void DFSClientNodeP2::HandleCallbackList() {
     void *tag;
@@ -496,7 +370,7 @@ void DFSClientNodeP2::HandleCallbackList() {
 
     while (completion_queue.Next(&tag, &ok)) {
         {
-            // Reclaim ownership of the call_data object using unique_ptr
+
             std::unique_ptr<AsyncClientData<FileListResponseType>> call_data(
                 static_cast<AsyncClientData<FileListResponseType> *>(tag));
 
@@ -555,25 +429,14 @@ void DFSClientNodeP2::HandleCallbackList() {
                 std::this_thread::sleep_for(std::chrono::milliseconds(DFS_RESET_TIMEOUT));
             }
 
-            // call_data goes out of scope and is deleted automatically
+ 
         }
 
         dfs_log(LL_DEBUG3) << "Calling InitCallbackList";
         InitCallbackList();
     }
 }
-/**
- * This method will start the callback request to the server, requesting
- * an update whenever the server sees that files have been modified.
- *
- * We're making use of a template function here, so that we can keep some
- * of the more intricate workings of the async process out of the way, and
- * give you a chance to focus more on the project's requirements.
- */
+
+
 void DFSClientNodeP2::InitCallbackList() { CallbackList<FileRequestType, FileListResponseType>(); }
 
-//
-// STUDENT INSTRUCTION:
-//
-// Add any additional code you need to here
-//
