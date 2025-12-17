@@ -45,8 +45,9 @@ public:
      * @param command
      * @param working_directory
      * @param filename
+     * @return 0 on success, non-zero on failure
      */
-    void ProcessCommand(const std::string& command, const std::string& filename);
+    int ProcessCommand(const std::string& command, const std::string& filename);
 
     /**
      * Sets the mount path on the client node. This is the path
