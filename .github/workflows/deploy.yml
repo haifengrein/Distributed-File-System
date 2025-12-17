@@ -6,7 +6,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  RAW_IMAGE_PATH: ${{ github.repository }}
+  IMAGE_PATH:
   SERVER_IP: ${{ secrets.SERVER_IP }}
 
 jobs:
@@ -18,6 +19,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+
+    - name: Set lowercase image path
+      run: echo "IMAGE_PATH=$(echo "$RAW_IMAGE_PATH" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
     - name: Log in to the Container registry
       uses: docker/login-action@v2
@@ -32,7 +36,7 @@ jobs:
         context: .
         file: Dockerfile.prod
         push: true
-        tags: ghcr.io/${{ github.repository }}/dfs-server:latest
+        tags: ghcr.io/${{ env.IMAGE_PATH }}/dfs-server:latest
 
     - name: Build and Push Gateway
       uses: docker/build-push-action@v4
@@ -40,7 +44,7 @@ jobs:
         context: .
         file: gateway/Dockerfile
         push: true
-        tags: ghcr.io/${{ github.repository }}/dfs-gateway:latest
+        tags: ghcr.io/${{ env.IMAGE_PATH }}/dfs-gateway:latest
 
     - name: Build and Push Dashboard
       uses: docker/build-push-action@v4
@@ -51,7 +55,7 @@ jobs:
           VITE_API_URL=http://${{ env.SERVER_IP }}:8000
           VITE_WS_URL=ws://${{ env.SERVER_IP }}:8000/ws/events
         push: true
-        tags: ghcr.io/${{ github.repository }}/dfs-dashboard:latest
+        tags: ghcr.io/${{ env.IMAGE_PATH }}/dfs-dashboard:latest
 
   deploy:
     needs: build-and-push
@@ -78,12 +82,12 @@ jobs:
           cd ~/DFS-main
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
-          docker pull ghcr.io/${{ github.repository }}/dfs-server:latest
-          docker pull ghcr.io/${{ github.repository }}/dfs-gateway:latest
-          docker pull ghcr.io/${{ github.repository }}/dfs-dashboard:latest
+          docker pull ghcr.io/${{ env.IMAGE_PATH }}/dfs-server:latest
+          docker pull ghcr.io/${{ env.IMAGE_PATH }}/dfs-gateway:latest
+          docker pull ghcr.io/${{ env.IMAGE_PATH }}/dfs-dashboard:latest
           
-          export DFS_IMAGE=ghcr.io/${{ github.repository }}/dfs-server:latest
-          export GATEWAY_IMAGE=ghcr.io/${{ github.repository }}/dfs-gateway:latest
-          export DASHBOARD_IMAGE=ghcr.io/${{ github.repository }}/dfs-dashboard:latest
+          export DFS_IMAGE=ghcr.io/${{ env.IMAGE_PATH }}/dfs-server:latest
+          export GATEWAY_IMAGE=ghcr.io/${{ env.IMAGE_PATH }}/dfs-gateway:latest
+          export DASHBOARD_IMAGE=ghcr.io/${{ env.IMAGE_PATH }}/dfs-dashboard:latest
           
           docker-compose -f docker-compose.prod.yml up -d --force-recreate
