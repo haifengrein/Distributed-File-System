@@ -97,4 +97,4 @@ jobs:
           export GATEWAY_IMAGE="ghcr.io/${IMAGE_PATH}/dfs-gateway:latest"
           export DASHBOARD_IMAGE="ghcr.io/${IMAGE_PATH}/dfs-dashboard:latest"
           
-          docker-compose -f docker-compose.prod.yml up -d --force-recreate
+          docker compose -f docker-compose.prod.yml up -d --force-recreate
