@@ -34,7 +34,7 @@ RUN mkdir -p build && cd build && \
 # ==========================================
 # Stage 2: Runtime (Minimal Image)
 # ==========================================
-FROM ubuntu:22.04-slim
+FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
