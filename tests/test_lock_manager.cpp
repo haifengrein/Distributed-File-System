@@ -12,11 +12,9 @@ TEST_F(LockManagerTest, AcquireAndRelease) {
     std::string file = "file1.txt";
     std::string client = "clientA";
 
-    // Initial acquire
     EXPECT_TRUE(lock_manager.Acquire(file, client));
     EXPECT_EQ(lock_manager.GetOwner(file), client);
 
-    // Release
     EXPECT_TRUE(lock_manager.Release(file));
     EXPECT_FALSE(lock_manager.GetOwner(file).has_value());
 }
@@ -26,7 +24,6 @@ TEST_F(LockManagerTest, ReentrantLock) {
     std::string client = "clientA";
 
     EXPECT_TRUE(lock_manager.Acquire(file, client));
-    // Should succeed again
     EXPECT_TRUE(lock_manager.Acquire(file, client));
 }
 
@@ -36,17 +33,13 @@ TEST_F(LockManagerTest, Conflict) {
     std::string clientB = "clientB";
 
     EXPECT_TRUE(lock_manager.Acquire(file, clientA));
-    
-    // Client B should fail
+
     EXPECT_FALSE(lock_manager.Acquire(file, clientB));
     
-    // Check owner is still A
     EXPECT_EQ(lock_manager.GetOwner(file), clientA);
 
-    // Release A
     lock_manager.Release(file);
 
-    // Client B should now succeed
     EXPECT_TRUE(lock_manager.Acquire(file, clientB));
     EXPECT_EQ(lock_manager.GetOwner(file), clientB);
 }
@@ -56,7 +49,7 @@ TEST_F(LockManagerTest, ReleaseNonExistent) {
 }
 
 TEST_F(LockManagerTest, Concurrency) {
-    // Verify thread safety
+
     std::string file = "shared_file";
     std::atomic<int> success_count{0};
     int num_threads = 10;
@@ -67,7 +60,6 @@ TEST_F(LockManagerTest, Concurrency) {
             std::string client = "client" + std::to_string(i);
             if (lock_manager.Acquire(file, client)) {
                 success_count++;
-                // Simulate work
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
                 lock_manager.Release(file);
             }
@@ -78,9 +70,6 @@ TEST_F(LockManagerTest, Concurrency) {
         t.join();
     }
 
-    // At least one should have succeeded, but technically they could all fail if they just miss the window?
-    // No, the first one MUST succeed. But subsequent ones might fail if they try while locked.
-    // This test is a bit non-deterministic on "how many succeeded", but ensures no crash.
     EXPECT_GT(success_count, 0);
     EXPECT_FALSE(lock_manager.GetOwner(file).has_value());
 }

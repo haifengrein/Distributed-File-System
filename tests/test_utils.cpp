@@ -2,7 +2,7 @@
 
 #include "utils/dfs-utils.h"
 
-// Simple test for the path cleaner utility
+
 TEST(UtilsTest, CleanPathAddsSlash) {
     std::string input = "/tmp/path";
     std::string expected = "/tmp/path/";

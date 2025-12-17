@@ -26,29 +26,44 @@ DFSClient::DFSClient() {}
 
 DFSClient::~DFSClient() noexcept { this->Unmount(); }
 
-void DFSClient::ProcessCommand(const std::string &command, const std::string &filename) {
+int DFSClient::ProcessCommand(const std::string &command, const std::string &filename) {
+    grpc::StatusCode status = grpc::StatusCode::OK;
+    auto start = std::chrono::high_resolution_clock::now();
+
     if (command == "mount") {
         Mount(this->mount_path);
     }
-    if (command == "fetch") {
-        client_node.Fetch(filename);
+    else if (command == "fetch") {
+        status = client_node.Fetch(filename);
 
     } else if (command == "store") {
-        client_node.Store(filename);
+        status = client_node.Store(filename);
 
     } else if (command == "delete") {
-        client_node.Delete(filename);
+        status = client_node.Delete(filename);
 
     } else if (command == "list") {
         std::map<std::string, int> file_map;
-        client_node.List(&file_map, true);
+        status = client_node.List(&file_map, true);
 
     } else if (command == "stat") {
-        client_node.Stat(filename);
+        status = client_node.Stat(filename);
 
     } else {
         dfs_log(LL_ERROR) << "Unknown command";
+        return 1;
     }
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+    // Print machine-readable stats to stdout
+    std::cout << "DFS_CLI_RESULT: " 
+              << "{\"status\": \"" << (status == grpc::StatusCode::OK ? "OK" : "ERROR") << "\", "
+              << "\"code\": " << status << ", "
+              << "\"duration_us\": " << duration_us << "}" << std::endl;
+
+    return (status == grpc::StatusCode::OK) ? 0 : 1;
 }
 
 void DFSClient::InitializeClientNode(const std::string &server_address) {
@@ -334,9 +349,7 @@ int main(int argc, char **argv) {
     client.SetMountPath(mount_path);
     client.SetDeadlineTimeout(deadline_timeout);
     client.InitializeClientNode(server_address);
-    client.ProcessCommand(command, filename);
-
-    return 0;
+    return client.ProcessCommand(command, filename);
 }
 
 #endif

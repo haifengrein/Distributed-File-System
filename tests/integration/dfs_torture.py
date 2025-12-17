@@ -7,7 +7,7 @@ import random
 import sys
 import signal
 
-# Configuration
+
 SERVER_BIN = "./build/bin/dfs-server"
 CLIENT_BIN = "./build/bin/dfs-client"
 MOUNT_ROOT = "/tmp/dfs_test_mounts"
