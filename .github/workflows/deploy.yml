@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
+      packages: read
     outputs:
       image_path: ${{ steps.image_path.outputs.image_path }}
 
@@ -28,30 +28,26 @@ jobs:
         echo "IMAGE_PATH=$IMAGE_PATH" >> "$GITHUB_ENV"
         echo "image_path=$IMAGE_PATH" >> "$GITHUB_OUTPUT"
 
-    - name: Log in to the Container registry
-      uses: docker/login-action@v2
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Prepare image artifacts directory
+      run: mkdir -p "deploy-images"
 
-    - name: Build and Push Server
+    - name: Build Server (export tar)
       uses: docker/build-push-action@v4
       with:
         context: .
         file: Dockerfile.prod
-        push: true
         tags: ghcr.io/${{ steps.image_path.outputs.image_path }}/dfs-server:latest
+        outputs: type=docker,dest=deploy-images/dfs-server.tar
 
-    - name: Build and Push Gateway
+    - name: Build Gateway (export tar)
       uses: docker/build-push-action@v4
       with:
         context: .
         file: gateway/Dockerfile
-        push: true
         tags: ghcr.io/${{ steps.image_path.outputs.image_path }}/dfs-gateway:latest
+        outputs: type=docker,dest=deploy-images/dfs-gateway.tar
 
-    - name: Build and Push Dashboard
+    - name: Build Dashboard (export tar)
       uses: docker/build-push-action@v4
       with:
         context: .
@@ -59,14 +55,32 @@ jobs:
         build-args: |
           VITE_API_URL=http://${{ env.SERVER_IP }}:8000
           VITE_WS_URL=ws://${{ env.SERVER_IP }}:8000/ws/events
-        push: true
         tags: ghcr.io/${{ steps.image_path.outputs.image_path }}/dfs-dashboard:latest
+        outputs: type=docker,dest=deploy-images/dfs-dashboard.tar
+
+    - name: Compress image tars
+      run: |
+        gzip -9 "deploy-images/dfs-server.tar"
+        gzip -9 "deploy-images/dfs-gateway.tar"
+        gzip -9 "deploy-images/dfs-dashboard.tar"
+
+    - name: Upload image artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: deploy-images
+        path: deploy-images/*.tar.gz
 
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+
+    - name: Download image artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: deploy-images
+        path: deploy-images
     
     - name: Copy docker-compose file to server
       uses: appleboy/scp-action@master
@@ -74,7 +88,7 @@ jobs:
         host: ${{ secrets.SERVER_IP }}
         username: ubuntu
         key: ${{ secrets.SSH_PRIVATE_KEY }}
-        source: "docker-compose.prod.yml"
+        source: "docker-compose.prod.yml,deploy-images/dfs-server.tar.gz,deploy-images/dfs-gateway.tar.gz,deploy-images/dfs-dashboard.tar.gz"
         target: "~/DFS-main/"
 
     - name: SSH and Restart
@@ -95,11 +109,14 @@ jobs:
             exit 1
           fi
 
-          echo "${{ secrets.GITHUB_TOKEN }}" | sudo -n docker login "ghcr.io" -u "${{ github.actor }}" --password-stdin
+          if ! sudo -n true 2>/dev/null; then
+            echo "ERROR: sudo requires a password; configure passwordless sudo or add ubuntu to the docker group." >&2
+            exit 1
+          fi
 
-          sudo -n docker pull "ghcr.io/${IMAGE_PATH}/dfs-server:latest"
-          sudo -n docker pull "ghcr.io/${IMAGE_PATH}/dfs-gateway:latest"
-          sudo -n docker pull "ghcr.io/${IMAGE_PATH}/dfs-dashboard:latest"
+          gzip -dc "deploy-images/dfs-server.tar.gz" | sudo -n docker load
+          gzip -dc "deploy-images/dfs-gateway.tar.gz" | sudo -n docker load
+          gzip -dc "deploy-images/dfs-dashboard.tar.gz" | sudo -n docker load
           
           export DFS_IMAGE="ghcr.io/${IMAGE_PATH}/dfs-server:latest"
           export GATEWAY_IMAGE="ghcr.io/${IMAGE_PATH}/dfs-gateway:latest"
