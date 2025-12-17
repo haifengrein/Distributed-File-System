@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Play, CheckCircle, XCircle, Server, Database, ArrowRight, Loader2, AlertTriangle, Activity, Zap, Clock } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, AlertTriangle, Activity, Zap } from 'lucide-react';
 import { useWebSocket } from '../context/WebSocketContext';
 
 export const ControlPanel = ({ onScenarioChange }: { onScenarioChange: (info: any) => void }) => {

@@ -1,4 +1,4 @@
-import { Info, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Info } from 'lucide-react';
 
 export interface ScenarioInfo {
   title: string;
