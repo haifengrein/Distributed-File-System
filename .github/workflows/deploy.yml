@@ -84,8 +84,10 @@ jobs:
         username: ubuntu
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
+          set -eu
           cd "$HOME/DFS-main"
-          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          echo "user=$(id -un) groups=$(id -nG)"
+          docker --version
           
           IMAGE_PATH="${{ needs.build-and-push.outputs.image_path }}"
           if [ -z "$IMAGE_PATH" ]; then
@@ -93,12 +95,18 @@ jobs:
             exit 1
           fi
 
-          docker pull "ghcr.io/${IMAGE_PATH}/dfs-server:latest"
-          docker pull "ghcr.io/${IMAGE_PATH}/dfs-gateway:latest"
-          docker pull "ghcr.io/${IMAGE_PATH}/dfs-dashboard:latest"
+          echo "${{ secrets.GITHUB_TOKEN }}" | sudo -n docker login "ghcr.io" -u "${{ github.actor }}" --password-stdin
+
+          sudo -n docker pull "ghcr.io/${IMAGE_PATH}/dfs-server:latest"
+          sudo -n docker pull "ghcr.io/${IMAGE_PATH}/dfs-gateway:latest"
+          sudo -n docker pull "ghcr.io/${IMAGE_PATH}/dfs-dashboard:latest"
           
           export DFS_IMAGE="ghcr.io/${IMAGE_PATH}/dfs-server:latest"
           export GATEWAY_IMAGE="ghcr.io/${IMAGE_PATH}/dfs-gateway:latest"
           export DASHBOARD_IMAGE="ghcr.io/${IMAGE_PATH}/dfs-dashboard:latest"
           
-          docker compose -f "docker-compose.prod.yml" up -d --force-recreate
+          if sudo -n docker compose version >/dev/null 2>&1; then
+            sudo -n docker compose -f "docker-compose.prod.yml" up -d --force-recreate
+          else
+            sudo -n docker-compose -f "docker-compose.prod.yml" up -d --force-recreate
+          fi
