@@ -7,6 +7,7 @@ import threading
 import time
 import random
 import hashlib
+import re
 
 PORT = int(os.getenv("PORT", "5000"))
 DFS_SERVER_ADDRESS = os.getenv("DFS_SERVER_ADDRESS", "dfs-server:50051")
@@ -32,7 +33,17 @@ def write_local(client_name: str, filename: str, content: str) -> None:
         f.write(content)
 
 
-def run_client(client_name: str, cmd: str, file: str, timeout: int = 5, custom_id: str | None = None):
+def _parse_cli_result(output: str) -> dict | None:
+    match = re.search(r"DFS_CLI_RESULT:\\s*(\\{.*\\})", output)
+    if not match:
+        return None
+    try:
+        return json.loads(match.group(1))
+    except Exception:
+        return None
+
+
+def run_client(client_name: str, cmd: str, file: str, timeout: int = 5, custom_id: str | None = None) -> dict:
     mount_dir = f"{MOUNT_ROOT}/{client_name}"
     args = [DFS_CLIENT_BIN, "-a", DFS_SERVER_ADDRESS, "-m", mount_dir, cmd, file]
 
@@ -43,9 +54,32 @@ def run_client(client_name: str, cmd: str, file: str, timeout: int = 5, custom_i
         start_t = time.perf_counter()
         result = subprocess.run(args, env=env, capture_output=True, text=True, timeout=timeout)
         duration_ms = (time.perf_counter() - start_t) * 1000
-        return result.returncode == 0, result.stdout + result.stderr, duration_ms
+        combined = (result.stdout or "") + (result.stderr or "")
+        return {
+            "ok": result.returncode == 0,
+            "returncode": result.returncode,
+            "duration_ms": round(duration_ms, 2),
+            "client_id": env["DFS_CLIENT_ID"],
+            "cmd": cmd,
+            "file": file,
+            "mount_dir": mount_dir,
+            "server": DFS_SERVER_ADDRESS,
+            "cli_result": _parse_cli_result(combined),
+            "output": combined[-4000:],
+        }
     except subprocess.TimeoutExpired:
-        return False, "Timeout", 0.0
+        return {
+            "ok": False,
+            "returncode": None,
+            "duration_ms": 0.0,
+            "client_id": env["DFS_CLIENT_ID"],
+            "cmd": cmd,
+            "file": file,
+            "mount_dir": mount_dir,
+            "server": DFS_SERVER_ADDRESS,
+            "cli_result": None,
+            "output": "Timeout",
+        }
 
 
 class DemoRequestHandler(http.server.BaseHTTPRequestHandler):
@@ -64,21 +98,40 @@ class DemoRequestHandler(http.server.BaseHTTPRequestHandler):
         content = f"Basic Consistency Data {random.randint(1000, 9999)}"
         write_local("client_a", filename, content)
 
-        run_client("client_a", "store", filename, custom_id="Client-A")
-        run_client("client_b", "fetch", filename, custom_id="Client-B")
+        writer_path = f"{MOUNT_ROOT}/client_a/{filename}"
+        reader_path = f"{MOUNT_ROOT}/client_b/{filename}"
+        writer_hash = calculate_hash(writer_path)
+
+        store = run_client("client_a", "store", filename, custom_id="Client-A")
+        fetch = run_client("client_b", "fetch", filename, custom_id="Client-B")
 
         server_path = f"{DFS_SERVER_DATA_DIR}/{filename}"
-        reader_path = f"{MOUNT_ROOT}/client_b/{filename}"
-        writer_path = f"{MOUNT_ROOT}/client_a/{filename}"
+        server_hash = calculate_hash(server_path)
+        reader_hash = calculate_hash(reader_path)
+
+        if not store["ok"] or not fetch["ok"] or server_hash == "MISSING":
+            self._send_json(
+                {
+                    "status": "error",
+                    "type": "consistency",
+                    "message": "Basic scenario failed; check store/fetch diagnostics.",
+                    "client_hash": reader_hash,
+                    "server_hash": server_hash,
+                    "writer_hash": writer_hash,
+                    "store": store,
+                    "fetch": fetch,
+                }
+            )
+            return
 
         self._send_json(
             {
                 "status": "success",
                 "type": "consistency",
-                "client_hash": calculate_hash(reader_path),
-                "server_hash": calculate_hash(server_path),
+                "client_hash": reader_hash,
+                "server_hash": server_hash,
                 "message": "Client-A stored, Client-B fetched.",
-                "writer_hash": calculate_hash(writer_path),
+                "writer_hash": writer_hash,
             }
         )
 
@@ -87,7 +140,7 @@ class DemoRequestHandler(http.server.BaseHTTPRequestHandler):
         duration_s = 10
 
         write_local("client_a", filename, "Initial Config")
-        run_client("client_a", "store", filename)
+        seed_store = run_client("client_a", "store", filename, custom_id="Client-A")
 
         def hammer(client_name: str, client_id: str):
             end_time = time.time() + duration_s
@@ -104,13 +157,28 @@ class DemoRequestHandler(http.server.BaseHTTPRequestHandler):
         t1.join()
         t2.join()
 
-        run_client("client_a", "fetch", filename)
-        run_client("client_b", "fetch", filename)
+        fetch_a = run_client("client_a", "fetch", filename, custom_id="Client-A")
+        fetch_b = run_client("client_b", "fetch", filename, custom_id="Client-B")
 
         server_path = f"{DFS_SERVER_DATA_DIR}/{filename}"
         hash_a = calculate_hash(f"{MOUNT_ROOT}/client_a/{filename}")
         hash_b = calculate_hash(f"{MOUNT_ROOT}/client_b/{filename}")
         hash_s = calculate_hash(server_path)
+
+        if not seed_store["ok"] or hash_s == "MISSING":
+            self._send_json(
+                {
+                    "status": "error",
+                    "type": "consistency",
+                    "message": "Conflict scenario failed; initial store did not succeed or server file missing.",
+                    "client_hash": hash_a,
+                    "server_hash": hash_s,
+                    "seed_store": seed_store,
+                    "fetch_a": fetch_a,
+                    "fetch_b": fetch_b,
+                }
+            )
+            return
 
         is_consistent = hash_a == hash_b == hash_s
         self._send_json(
@@ -126,6 +194,7 @@ class DemoRequestHandler(http.server.BaseHTTPRequestHandler):
     def run_performance_scenario(self):
         latencies = []
         filename = "perf_test.dat"
+        failures: list[dict] = []
 
         for i in range(5):
             content = os.urandom(1024).hex()
@@ -133,16 +202,23 @@ class DemoRequestHandler(http.server.BaseHTTPRequestHandler):
             client_id = "Perf-A" if client_name == "client_a" else "Perf-B"
             write_local(client_name, filename, content)
 
-            success, out, ms = run_client(client_name, "store", filename, custom_id=client_id)
-            if success:
-                latencies.append(ms)
+            res = run_client(client_name, "store", filename, custom_id=client_id)
+            if res["ok"]:
+                latencies.append(res["duration_ms"])
             else:
-                print(f"Perf run failed: {out}", flush=True)
+                failures.append(res)
 
             time.sleep(0.1)
 
         if not latencies:
-            self._send_json({"status": "error", "message": "All performance runs failed."})
+            self._send_json(
+                {
+                    "status": "error",
+                    "type": "performance",
+                    "message": "All performance runs failed.",
+                    "failures": failures[-5:],
+                }
+            )
             return
 
         avg_ms = sum(latencies) / len(latencies)
