@@ -57,7 +57,7 @@ export const ControlPanel = ({ onScenarioChange }: { onScenarioChange: (info: an
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-
+    } catch (error) {
       setResult({ status: 'error', message: 'Failed to trigger scenario' });
       setLoading(null);
     }
