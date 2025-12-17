@@ -41,6 +41,7 @@ jobs:
       with:
         context: .
         file: Dockerfile.prod
+        target: server
         tags: ghcr.io/${{ steps.image_path.outputs.image_path }}/dfs-server:latest
         outputs: type=docker,dest=deploy-images/dfs-server.tar
 

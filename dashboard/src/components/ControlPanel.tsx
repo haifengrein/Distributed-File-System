@@ -159,6 +159,15 @@ export const ControlPanel = ({ onScenarioChange }: { onScenarioChange: (info: an
                   </div>
                 </div>
               )}
+
+              {result.status === 'error' && (
+                <details className="mt-4 text-xs">
+                  <summary className="cursor-pointer text-gray-400 select-none">Diagnostics</summary>
+                  <pre className="mt-2 whitespace-pre-wrap break-all bg-black/40 p-3 rounded border border-gray-800 text-gray-300">
+                    {JSON.stringify(result, null, 2)}
+                  </pre>
+                </details>
+              )}
             </>
           )}
         </div>
