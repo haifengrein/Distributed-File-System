@@ -2,7 +2,7 @@ name: Deploy to Cloud
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "deployment/cloud" ]
 
 env:
   REGISTRY: ghcr.io
