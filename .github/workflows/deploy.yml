@@ -28,6 +28,11 @@ jobs:
         echo "IMAGE_PATH=$IMAGE_PATH" >> "$GITHUB_ENV"
         echo "image_path=$IMAGE_PATH" >> "$GITHUB_OUTPUT"
 
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver: docker-container
+
     - name: Prepare image artifacts directory
       run: mkdir -p "deploy-images"
 
