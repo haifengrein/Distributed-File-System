@@ -6,7 +6,7 @@ ARG VITE_WS_URL
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_WS_URL=$VITE_WS_URL
 COPY dashboard/package.json dashboard/package-lock.json ./
-RUN npm ci
+RUN npm install
 COPY dashboard/ ./
 RUN npm run build
 
