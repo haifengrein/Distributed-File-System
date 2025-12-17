@@ -51,9 +51,13 @@ export const ControlPanel = ({ onScenarioChange }: { onScenarioChange: (info: an
       });
     }
 
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     try {
-      await fetch(`http://localhost:8000/api/run/${type}`, { method: 'POST' });
-    } catch (err) {
+        const response = await fetch(`${API_BASE}/api/run/${type}`, { method: 'POST' });
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
       setResult({ status: 'error', message: 'Failed to trigger scenario' });
       setLoading(null);
     }

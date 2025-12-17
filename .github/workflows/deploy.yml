@@ -1,0 +1,89 @@
+name: Deploy to Cloud
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  SERVER_IP: ${{ secrets.SERVER_IP }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Log in to the Container registry
+      uses: docker/login-action@v2
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and Push Server
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: Dockerfile.prod
+        push: true
+        tags: ghcr.io/${{ github.repository }}/dfs-server:latest
+
+    - name: Build and Push Gateway
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: gateway/Dockerfile
+        push: true
+        tags: ghcr.io/${{ github.repository }}/dfs-gateway:latest
+
+    - name: Build and Push Dashboard
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: dashboard/Dockerfile.prod
+        build-args: |
+          VITE_API_URL=http://${{ env.SERVER_IP }}:8000
+          VITE_WS_URL=ws://${{ env.SERVER_IP }}:8000/ws/events
+        push: true
+        tags: ghcr.io/${{ github.repository }}/dfs-dashboard:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Copy docker-compose file to server
+      uses: appleboy/scp-action@master
+      with:
+        host: ${{ secrets.SERVER_IP }}
+        username: ubuntu
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        source: "docker-compose.prod.yml"
+        target: "~/DFS-main/"
+
+    - name: SSH and Restart
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SERVER_IP }}
+        username: ubuntu
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          cd ~/DFS-main
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          docker pull ghcr.io/${{ github.repository }}/dfs-server:latest
+          docker pull ghcr.io/${{ github.repository }}/dfs-gateway:latest
+          docker pull ghcr.io/${{ github.repository }}/dfs-dashboard:latest
+          
+          export DFS_IMAGE=ghcr.io/${{ github.repository }}/dfs-server:latest
+          export GATEWAY_IMAGE=ghcr.io/${{ github.repository }}/dfs-gateway:latest
+          export DASHBOARD_IMAGE=ghcr.io/${{ github.repository }}/dfs-dashboard:latest
+          
+          docker-compose -f docker-compose.prod.yml up -d --force-recreate

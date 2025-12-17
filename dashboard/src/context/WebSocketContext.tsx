@@ -38,8 +38,8 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
   const [events, setEvents] = useState<SystemEvent[]>([]);
 
   useEffect(() => {
-    // In Docker, localhost:8000 will be forwarded
-    const ws = new WebSocket('ws://localhost:8000/ws/events');
+    const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/events';
+    const ws = new WebSocket(WS_URL);
 
     ws.onopen = () => {
       console.log('WebSocket Connected');
