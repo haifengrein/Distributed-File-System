@@ -15,17 +15,29 @@ services:
           cpus: '1.0'
           memory: 512M
 
+  demo-agent:
+    image: ${DEMO_AGENT_IMAGE:-ghcr.io/haifengrein/distributed-file-system/dfs-demo-agent:latest}
+    container_name: dfs-prod-demo-agent
+    restart: always
+    environment:
+      - DFS_SERVER_ADDRESS=dfs-server:50051
+    volumes:
+      - dfs_data:/data
+    depends_on:
+      - dfs-server
+
   gateway:
     image: ${GATEWAY_IMAGE:-ghcr.io/haifengrein/distributed-file-system/dfs-gateway:latest}
     container_name: dfs-prod-gateway
     restart: always
     environment:
       - DFS_SERVER_ADDRESS=dfs-server:50051
-      - DEMO_AGENT_URL=http://localhost:5000 
+      - DEMO_AGENT_URL=http://demo-agent:5000
     ports:
       - "8000:8000"
     depends_on:
       - dfs-server
+      - demo-agent
 
   dashboard:
     image: ${DASHBOARD_IMAGE:-ghcr.io/haifengrein/distributed-file-system/dfs-dashboard:latest}

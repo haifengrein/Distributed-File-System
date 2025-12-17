@@ -51,7 +51,8 @@ export const ControlPanel = ({ onScenarioChange }: { onScenarioChange: (info: an
       });
     }
 
-    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const configuredApiBase = (import.meta.env.VITE_API_URL || '').trim();
+    const API_BASE = configuredApiBase || '';
     try {
         const response = await fetch(`${API_BASE}/api/run/${type}`, { method: 'POST' });
         if (!response.ok) {

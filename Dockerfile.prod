@@ -56,3 +56,30 @@ RUN mkdir -p /data
 
 # Default Command
 CMD ["dfs-server", "-a", "0.0.0.0:50051", "-m", "/data", "-n", "4"]
+
+# ==========================================
+# Stage 3: Demo Agent (Optional)
+# ==========================================
+FROM ubuntu:22.04 AS demo-agent
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    libgrpc++1 \
+    libprotobuf23 \
+    libspdlog1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=builder /app/build/bin/dfs-client /usr/local/bin/dfs-client
+COPY demo_agent/agent.py /app/agent.py
+
+EXPOSE 5000
+
+ENV DFS_SERVER_ADDRESS="dfs-server:50051"
+ENV DFS_SERVER_DATA_DIR="/data"
+ENV DFS_AGENT_MOUNT_ROOT="/mnt/demo_agent"
+
+CMD ["python3", "-u", "/app/agent.py"]

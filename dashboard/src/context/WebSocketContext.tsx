@@ -38,7 +38,9 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
   const [events, setEvents] = useState<SystemEvent[]>([]);
 
   useEffect(() => {
-    const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/events';
+    const configuredWsUrl = (import.meta.env.VITE_WS_URL || '').trim();
+    const defaultWsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/events`;
+    const WS_URL = configuredWsUrl || defaultWsUrl;
     const ws = new WebSocket(WS_URL);
 
     ws.onopen = () => {

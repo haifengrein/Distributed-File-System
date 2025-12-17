@@ -57,17 +57,24 @@ jobs:
       with:
         context: .
         file: dashboard/Dockerfile.prod
-        build-args: |
-          VITE_API_URL=http://${{ env.SERVER_IP }}:8000
-          VITE_WS_URL=ws://${{ env.SERVER_IP }}:8000/ws/events
         tags: ghcr.io/${{ steps.image_path.outputs.image_path }}/dfs-dashboard:latest
         outputs: type=docker,dest=deploy-images/dfs-dashboard.tar
+
+    - name: Build Demo Agent (export tar)
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: Dockerfile.prod
+        target: demo-agent
+        tags: ghcr.io/${{ steps.image_path.outputs.image_path }}/dfs-demo-agent:latest
+        outputs: type=docker,dest=deploy-images/dfs-demo-agent.tar
 
     - name: Compress image tars
       run: |
         gzip -9 "deploy-images/dfs-server.tar"
         gzip -9 "deploy-images/dfs-gateway.tar"
         gzip -9 "deploy-images/dfs-dashboard.tar"
+        gzip -9 "deploy-images/dfs-demo-agent.tar"
 
     - name: Upload image artifacts
       uses: actions/upload-artifact@v4
@@ -93,7 +100,7 @@ jobs:
         host: ${{ secrets.SERVER_IP }}
         username: ubuntu
         key: ${{ secrets.SSH_PRIVATE_KEY }}
-        source: "docker-compose.prod.yml,deploy-images/dfs-server.tar.gz,deploy-images/dfs-gateway.tar.gz,deploy-images/dfs-dashboard.tar.gz"
+        source: "docker-compose.prod.yml,deploy-images/dfs-server.tar.gz,deploy-images/dfs-gateway.tar.gz,deploy-images/dfs-dashboard.tar.gz,deploy-images/dfs-demo-agent.tar.gz"
         target: "~/DFS-main/"
 
     - name: SSH and Restart
@@ -122,13 +129,70 @@ jobs:
           gzip -dc "deploy-images/dfs-server.tar.gz" | sudo -n docker load
           gzip -dc "deploy-images/dfs-gateway.tar.gz" | sudo -n docker load
           gzip -dc "deploy-images/dfs-dashboard.tar.gz" | sudo -n docker load
+          gzip -dc "deploy-images/dfs-demo-agent.tar.gz" | sudo -n docker load
           
           export DFS_IMAGE="ghcr.io/${IMAGE_PATH}/dfs-server:latest"
           export GATEWAY_IMAGE="ghcr.io/${IMAGE_PATH}/dfs-gateway:latest"
           export DASHBOARD_IMAGE="ghcr.io/${IMAGE_PATH}/dfs-dashboard:latest"
-          
-          if sudo -n docker compose version >/dev/null 2>&1; then
-            sudo -n docker compose -f "docker-compose.prod.yml" up -d --force-recreate
-          else
-            sudo -n docker-compose -f "docker-compose.prod.yml" up -d --force-recreate
-          fi
+          export DEMO_AGENT_IMAGE="ghcr.io/${IMAGE_PATH}/dfs-demo-agent:latest"
+
+          NETWORK_NAME="dfs-net"
+          VOLUME_NAME="dfs_data"
+
+          sudo -n docker network inspect "$NETWORK_NAME" >/dev/null 2>&1 || sudo -n docker network create "$NETWORK_NAME" >/dev/null
+          sudo -n docker volume inspect "$VOLUME_NAME" >/dev/null 2>&1 || sudo -n docker volume create "$VOLUME_NAME" >/dev/null
+
+          rotate_container() {
+            name="$1"
+            ts="$(date +%s)"
+            if sudo -n docker ps -a --format '{{.Names}}' | grep -Fxq "$name"; then
+              sudo -n docker stop "$name" >/dev/null 2>&1 || true
+              sudo -n docker rename "$name" "${name}-old-${ts}" >/dev/null 2>&1 || true
+            fi
+          }
+
+          rotate_container "dfs-prod-server"
+          rotate_container "dfs-prod-gateway"
+          rotate_container "dfs-prod-dashboard"
+          rotate_container "dfs-prod-demo-agent"
+          rotate_container "dfs-server"
+          rotate_container "gateway"
+          rotate_container "dashboard"
+          rotate_container "demo-agent"
+
+          sudo -n docker run -d \
+            --name "dfs-server" \
+            --restart "always" \
+            --network "$NETWORK_NAME" \
+            -p "50051:50051" \
+            -v "${VOLUME_NAME}:/data" \
+            "$DFS_IMAGE"
+
+          sudo -n docker run -d \
+            --name "demo-agent" \
+            --restart "always" \
+            --network "$NETWORK_NAME" \
+            -e "DFS_SERVER_ADDRESS=dfs-server:50051" \
+            -v "${VOLUME_NAME}:/data" \
+            "$DEMO_AGENT_IMAGE"
+
+          sudo -n docker run -d \
+            --name "gateway" \
+            --restart "always" \
+            --network "$NETWORK_NAME" \
+            -p "8000:8000" \
+            -e "DFS_SERVER_ADDRESS=dfs-server:50051" \
+            -e "DEMO_AGENT_URL=http://demo-agent:5000" \
+            "$GATEWAY_IMAGE"
+
+          sudo -n docker run -d \
+            --name "dashboard" \
+            --restart "always" \
+            --network "$NETWORK_NAME" \
+            -p "80:80" \
+            "$DASHBOARD_IMAGE"
+
+          sudo -n docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+          echo "Health checks:"
+          command -v curl >/dev/null 2>&1 && curl -fsS "http://127.0.0.1/" >/dev/null && echo "OK: http://127.0.0.1/"
+          command -v curl >/dev/null 2>&1 && curl -fsS "http://127.0.0.1/api/" >/dev/null && echo "OK: http://127.0.0.1/api/"

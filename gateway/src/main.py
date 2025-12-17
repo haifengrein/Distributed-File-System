@@ -10,7 +10,7 @@ from proto_gen import dfs_service_pb2, dfs_service_pb2_grpc
 
 # Configuration
 DFS_SERVER_ADDRESS = os.getenv("DFS_SERVER_ADDRESS", "localhost:50051")
-DEMO_AGENT_URL = "http://dfs-dev:5000" 
+DEMO_AGENT_URL = os.getenv("DEMO_AGENT_URL", "http://dfs-dev:5000")
 
 # Logging Setup
 logging.basicConfig(level=logging.INFO)
@@ -33,9 +33,12 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
+        logger.info("WebSocket client connected (connections=%d)", len(self.active_connections))
 
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+        logger.info("WebSocket client disconnected (connections=%d)", len(self.active_connections))
 
     async def broadcast(self, message: dict):
         for connection in self.active_connections:
@@ -64,7 +67,8 @@ async def monitor_events():
                         "metadata": dict(event.metadata)
                     }
                     await manager.broadcast(event_data)
-        except Exception:
+        except Exception as e:
+            logger.exception("Monitor stream error: %s", e)
             await asyncio.sleep(5)
 
 @app.on_event("startup")
