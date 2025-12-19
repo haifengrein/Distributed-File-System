@@ -9,6 +9,8 @@ services:
       - "50051:50051"
     volumes:
       - dfs_data:/data
+    networks:
+      - dfs-net
     deploy:
       resources:
         limits:
@@ -23,6 +25,8 @@ services:
       - DFS_SERVER_ADDRESS=dfs-server:50051
     volumes:
       - dfs_data:/data
+    networks:
+      - dfs-net
     depends_on:
       - dfs-server
 
@@ -34,7 +38,9 @@ services:
       - DFS_SERVER_ADDRESS=dfs-server:50051
       - DEMO_AGENT_URL=http://demo-agent:5000
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
+    networks:
+      - dfs-net
     depends_on:
       - dfs-server
       - demo-agent
@@ -44,9 +50,18 @@ services:
     container_name: dfs-prod-dashboard
     restart: always
     ports:
-      - "80:80"
+      - "127.0.0.1:8080:80"
+    networks:
+      - dfs-net
+      - edge-net
     depends_on:
       - gateway
 
 volumes:
   dfs_data:
+
+networks:
+  dfs-net:
+    name: dfs-net
+  edge-net:
+    name: edge-net

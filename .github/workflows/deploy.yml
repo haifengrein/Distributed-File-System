@@ -138,9 +138,11 @@ jobs:
           export DEMO_AGENT_IMAGE="ghcr.io/${IMAGE_PATH}/dfs-demo-agent:latest"
 
           NETWORK_NAME="dfs-net"
+          EDGE_NETWORK_NAME="edge-net"
           VOLUME_NAME="dfs_data"
 
           sudo -n docker network inspect "$NETWORK_NAME" >/dev/null 2>&1 || sudo -n docker network create "$NETWORK_NAME" >/dev/null
+          sudo -n docker network inspect "$EDGE_NETWORK_NAME" >/dev/null 2>&1 || sudo -n docker network create "$EDGE_NETWORK_NAME" >/dev/null
           sudo -n docker volume inspect "$VOLUME_NAME" >/dev/null 2>&1 || sudo -n docker volume create "$VOLUME_NAME" >/dev/null
 
           rotate_container() {
@@ -181,7 +183,7 @@ jobs:
             --name "gateway" \
             --restart "always" \
             --network "$NETWORK_NAME" \
-            -p "8000:8000" \
+            -p "127.0.0.1:8000:8000" \
             -e "DFS_SERVER_ADDRESS=dfs-server:50051" \
             -e "DEMO_AGENT_URL=http://demo-agent:5000" \
             "$GATEWAY_IMAGE"
@@ -190,8 +192,10 @@ jobs:
             --name "dashboard" \
             --restart "always" \
             --network "$NETWORK_NAME" \
-            -p "80:80" \
+            -p "127.0.0.1:8080:80" \
             "$DASHBOARD_IMAGE"
+
+          sudo -n docker network connect "$EDGE_NETWORK_NAME" "dashboard" >/dev/null 2>&1 || true
 
           sudo -n docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
           echo "Health checks:"
@@ -214,11 +218,11 @@ jobs:
             }
 
             wait_for_url "http://127.0.0.1:8000/" "gateway" 60
-            wait_for_url "http://127.0.0.1/" "dashboard" 60
+            wait_for_url "http://127.0.0.1:8080/" "dashboard" 60
 
-            if ! curl -fsS -X POST "http://127.0.0.1/api/run/basic" >/dev/null 2>&1; then
+            if ! curl -fsS -X POST "http://127.0.0.1:8080/api/run/basic" >/dev/null 2>&1; then
               echo "ERROR: scenario basic failed via dashboard proxy" >&2
-              curl -sS -X POST "http://127.0.0.1/api/run/basic" || true
+              curl -sS -X POST "http://127.0.0.1:8080/api/run/basic" || true
               echo "--- dashboard logs (tail 200) ---"
               sudo -n docker logs --tail 200 "dashboard" || true
               echo "--- gateway logs (tail 200) ---"
